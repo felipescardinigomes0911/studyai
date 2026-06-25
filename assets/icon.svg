@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="80" fill="#0a0a0a"/>
+  <rect x="40" y="40" width="432" height="432" rx="60" fill="#120000"/>
+  <!-- Book shape -->
+  <rect x="100" y="120" width="140" height="200" rx="12" fill="#8b0000"/>
+  <rect x="110" y="130" width="120" height="180" rx="8" fill="#a00000"/>
+  <!-- Book spine line -->
+  <rect x="236" y="120" width="8" height="200" rx="4" fill="#5a0000"/>
+  <!-- Right page -->
+  <rect x="244" y="120" width="140" height="200" rx="12" fill="#c0392b"/>
+  <rect x="254" y="130" width="120" height="180" rx="8" fill="#e04030"/>
+  <!-- Lines on left page -->
+  <rect x="125" y="160" width="90" height="8" rx="4" fill="#5a0000" opacity="0.7"/>
+  <rect x="125" y="185" width="70" height="8" rx="4" fill="#5a0000" opacity="0.7"/>
+  <rect x="125" y="210" width="80" height="8" rx="4" fill="#5a0000" opacity="0.7"/>
+  <rect x="125" y="235" width="60" height="8" rx="4" fill="#5a0000" opacity="0.7"/>
+  <!-- Lines on right page -->
+  <rect x="269" y="160" width="90" height="8" rx="4" fill="#a02018" opacity="0.7"/>
+  <rect x="269" y="185" width="70" height="8" rx="4" fill="#a02018" opacity="0.7"/>
+  <rect x="269" y="210" width="80" height="8" rx="4" fill="#a02018" opacity="0.7"/>
+  <rect x="269" y="235" width="60" height="8" rx="4" fill="#a02018" opacity="0.7"/>
+  <!-- D letter -->
+  <text x="256" y="400" font-size="100" font-family="serif" font-weight="bold" fill="#fff" text-anchor="middle" opacity="0.9">D</text>
+</svg>
