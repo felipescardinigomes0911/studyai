@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dybass Estudioso</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #0a0a0a;
+      color: #e8e8e8;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    #root {
+      display: flex;
+      height: 100vh;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #111; }
+    ::-webkit-scrollbar-thumb { background: #8b0000; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #c0392b; }
+
+    /* Sidebar */
+    .sidebar {
+      width: 220px;
+      background: #0f0f0f;
+      border-right: 1px solid #1a1a1a;
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+      flex-shrink: 0;
+    }
+
+    .sidebar-logo {
+      padding: 24px 20px 20px;
+      border-bottom: 1px solid #1a1a1a;
+    }
+
+    .sidebar-logo h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.5px;
+    }
+
+    .sidebar-logo span {
+      font-size: 11px;
+      color: #8b0000;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: 16px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      color: #888;
+      font-size: 14px;
+      font-weight: 500;
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
+    }
+
+    .nav-item:hover {
+      background: #161616;
+      color: #ccc;
+    }
+
+    .nav-item.active {
+      background: #1a0000;
+      color: #fff;
+      border-left: 3px solid #8b0000;
+      padding-left: 11px;
+    }
+
+    .nav-item .nav-icon {
+      font-size: 18px;
+      width: 22px;
+      text-align: center;
+    }
+
+    .sidebar-footer {
+      padding: 16px 20px;
+      border-top: 1px solid #1a1a1a;
+      font-size: 11px;
+      color: #333;
+      text-align: center;
+    }
+
+    /* Main content */
+    .main {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .page-header {
+      padding: 28px 36px 20px;
+      border-bottom: 1px solid #141414;
+      background: #0a0a0a;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .page-header h2 {
+      font-size: 22px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .page-header p {
+      font-size: 13px;
+      color: #555;
+      margin-top: 4px;
+    }
+
+    .page-content {
+      padding: 28px 36px;
+      flex: 1;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: none;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      outline: none;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: #8b0000;
+      color: #fff;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: #a00000;
+    }
+
+    .btn-secondary {
+      background: #1a1a1a;
+      color: #ccc;
+      border: 1px solid #222;
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: #222;
+      color: #fff;
+    }
+
+    .btn-outline {
+      background: transparent;
+      color: #8b0000;
+      border: 1px solid #8b0000;
+    }
+
+    .btn-outline:hover:not(:disabled) {
+      background: #8b0000;
+      color: #fff;
+    }
+
+    /* Content section */
+    .content-textarea {
+      width: 100%;
+      min-height: 400px;
+      background: #111;
+      border: 1px solid #1e1e1e;
+      border-radius: 10px;
+      color: #e8e8e8;
+      font-size: 15px;
+      line-height: 1.7;
+      padding: 20px;
+      resize: vertical;
+      outline: none;
+      font-family: inherit;
+      transition: border-color 0.15s;
+    }
+
+    .content-textarea:focus {
+      border-color: #8b0000;
+    }
+
+    .content-textarea::placeholder {
+      color: #333;
+    }
+
+    .content-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .char-count {
+      font-size: 12px;
+      color: #444;
+      margin-left: auto;
+    }
+
+    .saved-badge {
+      font-size: 12px;
+      color: #2d7a2d;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* Summary section */
+    .summary-actions {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .summary-result {
+      background: #111;
+      border: 1px solid #1e1e1e;
+      border-radius: 10px;
+      padding: 24px;
+      font-size: 15px;
+      line-height: 1.8;
+      color: #ddd;
+      white-space: pre-wrap;
+      min-height: 200px;
+    }
+
+    .summary-result h1, .summary-result h2, .summary-result h3 {
+      color: #fff;
+      margin: 16px 0 8px;
+    }
+
+    /* Flashcards section */
+    .flashcard-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 28px;
+    }
+
+    .flashcard-progress {
+      font-size: 13px;
+      color: #555;
+      align-self: flex-end;
+    }
+
+    .flashcard-scene {
+      width: 100%;
+      max-width: 640px;
+      height: 300px;
+      perspective: 1000px;
+      cursor: pointer;
+    }
+
+    .flashcard-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      transform-style: preserve-3d;
+    }
+
+    .flashcard-inner.flipped {
+      transform: rotateY(180deg);
+    }
+
+    .flashcard-face {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      border-radius: 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 36px;
+      text-align: center;
+    }
+
+    .flashcard-front {
+      background: #141414;
+      border: 1px solid #222;
+    }
+
+    .flashcard-back {
+      background: #140000;
+      border: 1px solid #3a0000;
+      transform: rotateY(180deg);
+    }
+
+    .flashcard-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 20px;
+      opacity: 0.5;
+    }
+
+    .flashcard-front .flashcard-label { color: #888; }
+    .flashcard-back .flashcard-label { color: #8b0000; }
+
+    .flashcard-text {
+      font-size: 18px;
+      line-height: 1.6;
+      color: #e8e8e8;
+    }
+
+    .flashcard-hint {
+      font-size: 12px;
+      color: #333;
+      margin-top: 20px;
+    }
+
+    .flashcard-nav {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .flashcard-dots {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: center;
+      max-width: 300px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #222;
+      transition: background 0.2s;
+    }
+
+    .dot.active { background: #8b0000; }
+    .dot.visited { background: #3a0000; }
+
+    /* Quiz section */
+    .quiz-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+
+    .quiz-score {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #111;
+      border: 1px solid #1e1e1e;
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 14px;
+      color: #888;
+    }
+
+    .quiz-score strong {
+      color: #c0392b;
+      font-size: 16px;
+    }
+
+    .quiz-progress-bar {
+      height: 3px;
+      background: #1a1a1a;
+      border-radius: 2px;
+      margin-bottom: 28px;
+      overflow: hidden;
+    }
+
+    .quiz-progress-fill {
+      height: 100%;
+      background: #8b0000;
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+
+    .quiz-question-card {
+      background: #111;
+      border: 1px solid #1e1e1e;
+      border-radius: 12px;
+      padding: 28px;
+      margin-bottom: 20px;
+    }
+
+    .quiz-question-num {
+      font-size: 11px;
+      color: #8b0000;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+    }
+
+    .quiz-question-text {
+      font-size: 17px;
+      color: #fff;
+      line-height: 1.6;
+    }
+
+    .quiz-options {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+
+    .quiz-option {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 14px 18px;
+      border-radius: 10px;
+      border: 1px solid #1e1e1e;
+      background: #0f0f0f;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-align: left;
+      color: #ccc;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    .quiz-option:hover:not(.answered) {
+      border-color: #3a0000;
+      background: #120000;
+      color: #fff;
+    }
+
+    .quiz-option.selected {
+      border-color: #555;
+      background: #161616;
+      color: #fff;
+    }
+
+    .quiz-option.correct {
+      border-color: #2d7a2d;
+      background: #0a1a0a;
+      color: #5cb85c;
+    }
+
+    .quiz-option.wrong {
+      border-color: #7a0000;
+      background: #1a0000;
+      color: #e05555;
+    }
+
+    .quiz-option.reveal-correct {
+      border-color: #2d7a2d;
+      background: #0a1a0a;
+      color: #5cb85c;
+    }
+
+    .option-letter {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+      background: #1a1a1a;
+      font-size: 12px;
+      font-weight: 700;
+      color: #666;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .quiz-option.correct .option-letter,
+    .quiz-option.reveal-correct .option-letter {
+      background: #1a3a1a;
+      color: #5cb85c;
+    }
+
+    .quiz-option.wrong .option-letter { background: #3a0000; color: #e05555; }
+
+    .quiz-feedback {
+      padding: 14px 18px;
+      border-radius: 10px;
+      font-size: 14px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .quiz-feedback.correct { background: #0a1a0a; color: #5cb85c; border: 1px solid #2d7a2d; }
+    .quiz-feedback.wrong { background: #1a0000; color: #e05555; border: 1px solid #7a0000; }
+
+    .quiz-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Results */
+    .quiz-results {
+      text-align: center;
+      padding: 48px 24px;
+      background: #111;
+      border: 1px solid #1e1e1e;
+      border-radius: 14px;
+    }
+
+    .results-emoji {
+      font-size: 64px;
+      margin-bottom: 20px;
+    }
+
+    .results-title {
+      font-size: 26px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+
+    .results-score {
+      font-size: 48px;
+      font-weight: 800;
+      color: #c0392b;
+      margin: 20px 0;
+    }
+
+    .results-detail {
+      font-size: 15px;
+      color: #666;
+      margin-bottom: 32px;
+    }
+
+    /* Empty / loading states */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 24px;
+      text-align: center;
+      color: #333;
+    }
+
+    .empty-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.4;
+    }
+
+    .empty-title {
+      font-size: 16px;
+      color: #444;
+      margin-bottom: 8px;
+    }
+
+    .empty-desc {
+      font-size: 13px;
+      color: #333;
+      max-width: 320px;
+      line-height: 1.6;
+    }
+
+    .loading-spinner {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255,255,255,0.2);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .error-banner {
+      background: #1a0000;
+      border: 1px solid #7a0000;
+      border-radius: 10px;
+      padding: 14px 18px;
+      color: #e05555;
+      font-size: 14px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .section-divider {
+      height: 1px;
+      background: #141414;
+      margin: 24px 0;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .badge-red { background: #1a0000; color: #c0392b; border: 1px solid #3a0000; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useCallback } = React;
+
+    // ─── Icons ───────────────────────────────────────────────────────────────
+    const icons = {
+      content:    '📝',
+      summary:    '📋',
+      flashcards: '🃏',
+      quiz:       '🎯',
+      check:      '✓',
+      cross:      '✕',
+      left:       '←',
+      right:      '→',
+      refresh:    '↺',
+      save:       '💾',
+      brain:      '🧠',
+      star:       '⭐',
+      trophy:     '🏆',
+      sad:        '😞',
+      ok:         '👍',
+      sparkle:    '✨',
+    };
+
+    // ─── Content Section ─────────────────────────────────────────────────────
+    function ContentSection({ content, onContentChange }) {
+      const [saved, setSaved] = useState(false);
+
+      const handleSave = () => {
+        localStorage.setItem('dybass_content', content);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      };
+
+      return (
+        <div>
+          <div className="page-header">
+            <h2>Conteúdo de Estudo</h2>
+            <p>Cole ou digite o material que deseja estudar</p>
+          </div>
+          <div className="page-content">
+            <textarea
+              className="content-textarea"
+              value={content}
+              onChange={e => onContentChange(e.target.value)}
+              placeholder="Cole aqui seu conteúdo de estudo — textos, anotações, resumos de livros, artigos, etc.
+
+O conteúdo será usado para gerar resumos, flashcards e questões automaticamente com inteligência artificial.
+
+Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
+            />
+            <div className="content-actions">
+              <button className="btn btn-primary" onClick={handleSave} disabled={!content.trim()}>
+                {icons.save} Salvar Conteúdo
+              </button>
+              {saved && (
+                <span className="saved-badge">
+                  {icons.check} Salvo com sucesso
+                </span>
+              )}
+              {content && (
+                <span className="char-count">
+                  {content.length.toLocaleString()} caracteres · {content.split(/\s+/).filter(Boolean).length.toLocaleString()} palavras
+                </span>
+              )}
+            </div>
+
+            {!content.trim() && (
+              <div className="empty-state" style={{marginTop: 32}}>
+                <div className="empty-icon">{icons.brain}</div>
+                <div className="empty-title">Nenhum conteúdo inserido</div>
+                <div className="empty-desc">
+                  Comece colando ou digitando o material de estudo acima. Use a barra lateral para navegar entre as seções após salvar.
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ─── Summary Section ──────────────────────────────────────────────────────
+    function SummarySection({ content }) {
+      const [summary, setSummary] = useState(() => localStorage.getItem('dybass_summary') || '');
+      const [summaryType, setSummaryType] = useState(() => localStorage.getItem('dybass_summary_type') || '');
+      const [loading, setLoading] = useState(false);
+      const [error, setError] = useState('');
+
+      const generate = async (type) => {
+        if (!content.trim()) {
+          setError('Adicione conteúdo de estudo na seção "Conteúdo" primeiro.');
+          return;
+        }
+        setLoading(true);
+        setError('');
+        try {
+          const result = await window.electronAPI.generateSummary(content, type);
+          if (result.success) {
+            setSummary(result.data);
+            setSummaryType(type);
+            localStorage.setItem('dybass_summary', result.data);
+            localStorage.setItem('dybass_summary_type', type);
+          } else {
+            setError('Erro ao gerar resumo: ' + result.error);
+          }
+        } catch (e) {
+          setError('Erro de conexão. Verifique sua chave de API.');
+        }
+        setLoading(false);
+      };
+
+      return (
+        <div>
+          <div className="page-header">
+            <h2>Resumo</h2>
+            <p>Gere um resumo detalhado ou simplificado do seu conteúdo</p>
+          </div>
+          <div className="page-content">
+            <div className="summary-actions">
+              <button
+                className="btn btn-primary"
+                onClick={() => generate('completo')}
+                disabled={loading}
+              >
+                {loading && summaryType !== 'simples' ? <span className="loading-spinner" /> : icons.sparkle}
+                Resumo Completo
+              </button>
+              <button
+                className="btn btn-outline"
+                onClick={() => generate('simples')}
+                disabled={loading}
+              >
+                {loading && summaryType === 'simples' ? <span className="loading-spinner" /> : '•'}
+                Resumo Simples
+              </button>
+              {summary && !loading && (
+                <span className="badge badge-red" style={{marginLeft: 'auto'}}>
+                  {summaryType === 'completo' ? 'Completo' : 'Simples'}
+                </span>
+              )}
+            </div>
+
+            {error && (
+              <div className="error-banner">
+                {icons.cross} {error}
+              </div>
+            )}
+
+            {loading && (
+              <div className="empty-state">
+                <span className="loading-spinner" style={{width:36, height:36, borderWidth:3, marginBottom:16}} />
+                <div className="empty-title">Gerando resumo...</div>
+                <div className="empty-desc">A IA está processando seu conteúdo</div>
+              </div>
+            )}
+
+            {!loading && summary && (
+              <div className="summary-result">{summary}</div>
+            )}
+
+            {!loading && !summary && !error && (
+              <div className="empty-state">
+                <div className="empty-icon">{icons.summary}</div>
+                <div className="empty-title">Nenhum resumo gerado</div>
+                <div className="empty-desc">
+                  Clique em "Resumo Completo" para um resumo detalhado ou "Resumo Simples" para bullet points rápidos.
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ─── Flashcards Section ───────────────────────────────────────────────────
+    function FlashcardsSection({ content }) {
+      const [cards, setCards] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('dybass_flashcards') || '[]'); } catch { return []; }
+      });
+      const [current, setCurrent] = useState(0);
+      const [flipped, setFlipped] = useState(false);
+      const [visited, setVisited] = useState(new Set());
+      const [loading, setLoading] = useState(false);
+      const [error, setError] = useState('');
+
+      const generate = async () => {
+        if (!content.trim()) {
+          setError('Adicione conteúdo de estudo na seção "Conteúdo" primeiro.');
+          return;
+        }
+        setLoading(true);
+        setError('');
+        try {
+          const result = await window.electronAPI.generateFlashcards(content);
+          if (result.success) {
+            setCards(result.data);
+            setCurrent(0);
+            setFlipped(false);
+            setVisited(new Set());
+            localStorage.setItem('dybass_flashcards', JSON.stringify(result.data));
+          } else {
+            setError('Erro ao gerar flashcards: ' + result.error);
+          }
+        } catch (e) {
+          setError('Erro de conexão. Verifique sua chave de API.');
+        }
+        setLoading(false);
+      };
+
+      const goTo = (idx) => {
+        setVisited(v => new Set([...v, current]));
+        setCurrent(idx);
+        setFlipped(false);
+      };
+
+      const prev = () => { if (current > 0) goTo(current - 1); };
+      const next = () => { if (current < cards.length - 1) goTo(current + 1); };
+
+      const card = cards[current];
+
+      return (
+        <div>
+          <div className="page-header">
+            <h2>Flashcards</h2>
+            <p>Estude com cartões de pergunta e resposta — clique no card para virar</p>
+          </div>
+          <div className="page-content">
+            <div style={{display:'flex', gap:12, marginBottom:24}}>
+              <button className="btn btn-primary" onClick={generate} disabled={loading}>
+                {loading ? <span className="loading-spinner" /> : icons.sparkle}
+                {cards.length ? 'Gerar Novos' : 'Gerar Flashcards'}
+              </button>
+            </div>
+
+            {error && (
+              <div className="error-banner">
+                {icons.cross} {error}
+              </div>
+            )}
+
+            {loading && (
+              <div className="empty-state">
+                <span className="loading-spinner" style={{width:36, height:36, borderWidth:3, marginBottom:16}} />
+                <div className="empty-title">Gerando flashcards...</div>
+                <div className="empty-desc">Criando 10 cartões de estudo com IA</div>
+              </div>
+            )}
+
+            {!loading && cards.length > 0 && (
+              <div className="flashcard-container">
+                <div className="flashcard-progress">
+                  {current + 1} / {cards.length}
+                </div>
+
+                <div
+                  className="flashcard-scene"
+                  onClick={() => setFlipped(f => !f)}
+                >
+                  <div className={`flashcard-inner ${flipped ? 'flipped' : ''}`}>
+                    <div className="flashcard-face flashcard-front">
+                      <div className="flashcard-label">Pergunta</div>
+                      <div className="flashcard-text">{card.front}</div>
+                      <div className="flashcard-hint">Clique para ver a resposta</div>
+                    </div>
+                    <div className="flashcard-face flashcard-back">
+                      <div className="flashcard-label">Resposta</div>
+                      <div className="flashcard-text">{card.back}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flashcard-nav">
+                  <button className="btn btn-secondary" onClick={prev} disabled={current === 0}>
+                    {icons.left} Anterior
+                  </button>
+                  <div className="flashcard-dots">
+                    {cards.map((_, i) => (
+                      <div
+                        key={i}
+                        className={`dot ${i === current ? 'active' : visited.has(i) ? 'visited' : ''}`}
+                        onClick={() => goTo(i)}
+                        style={{cursor:'pointer'}}
+                        title={`Card ${i+1}`}
+                      />
+                    ))}
+                  </div>
+                  <button className="btn btn-secondary" onClick={next} disabled={current === cards.length - 1}>
+                    Próximo {icons.right}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!loading && cards.length === 0 && !error && (
+              <div className="empty-state">
+                <div className="empty-icon">{icons.flashcards}</div>
+                <div className="empty-title">Nenhum flashcard gerado</div>
+                <div className="empty-desc">
+                  Clique em "Gerar Flashcards" para criar 10 cartões de pergunta e resposta a partir do seu conteúdo.
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ─── Quiz Section ─────────────────────────────────────────────────────────
+    function QuizSection({ content }) {
+      const [questions, setQuestions] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('dybass_quiz') || '[]'); } catch { return []; }
+      });
+      const [current, setCurrent] = useState(0);
+      const [selected, setSelected] = useState(null);
+      const [answered, setAnswered] = useState(false);
+      const [score, setScore] = useState(0);
+      const [finished, setFinished] = useState(false);
+      const [loading, setLoading] = useState(false);
+      const [error, setError] = useState('');
+
+      const generate = async () => {
+        if (!content.trim()) {
+          setError('Adicione conteúdo de estudo na seção "Conteúdo" primeiro.');
+          return;
+        }
+        setLoading(true);
+        setError('');
+        try {
+          const result = await window.electronAPI.generateQuiz(content);
+          if (result.success) {
+            setQuestions(result.data);
+            localStorage.setItem('dybass_quiz', JSON.stringify(result.data));
+            resetQuiz();
+          } else {
+            setError('Erro ao gerar quiz: ' + result.error);
+          }
+        } catch (e) {
+          setError('Erro de conexão. Verifique sua chave de API.');
+        }
+        setLoading(false);
+      };
+
+      const resetQuiz = () => {
+        setCurrent(0);
+        setSelected(null);
+        setAnswered(false);
+        setScore(0);
+        setFinished(false);
+      };
+
+      const handleSelect = (idx) => {
+        if (answered) return;
+        setSelected(idx);
+        setAnswered(true);
+        if (idx === questions[current].correct) {
+          setScore(s => s + 1);
+        }
+      };
+
+      const handleNext = () => {
+        if (current < questions.length - 1) {
+          setCurrent(c => c + 1);
+          setSelected(null);
+          setAnswered(false);
+        } else {
+          setFinished(true);
+        }
+      };
+
+      const q = questions[current];
+      const optLetters = ['A', 'B', 'C', 'D'];
+
+      const getPercentage = () => Math.round((score / questions.length) * 100);
+      const getResultEmoji = () => {
+        const p = getPercentage();
+        if (p >= 90) return icons.trophy;
+        if (p >= 70) return icons.star;
+        if (p >= 50) return icons.ok;
+        return icons.sad;
+      };
+
+      return (
+        <div>
+          <div className="page-header">
+            <h2>Quiz</h2>
+            <p>Teste seus conhecimentos com questões de múltipla escolha</p>
+          </div>
+          <div className="page-content">
+            {error && (
+              <div className="error-banner">
+                {icons.cross} {error}
+              </div>
+            )}
+
+            {!loading && !finished && questions.length > 0 && (
+              <div className="quiz-header">
+                <div className="quiz-score">
+                  Acertos: <strong>{score}</strong>/{questions.length}
+                </div>
+                <button className="btn btn-secondary" onClick={generate} disabled={loading}>
+                  {icons.refresh} Novo Quiz
+                </button>
+              </div>
+            )}
+
+            {loading && (
+              <div className="empty-state">
+                <span className="loading-spinner" style={{width:36, height:36, borderWidth:3, marginBottom:16}} />
+                <div className="empty-title">Gerando quiz...</div>
+                <div className="empty-desc">Criando 8 questões de múltipla escolha</div>
+              </div>
+            )}
+
+            {!loading && questions.length === 0 && !error && (
+              <div className="empty-state">
+                <div className="empty-icon">{icons.quiz}</div>
+                <div className="empty-title">Nenhum quiz gerado</div>
+                <div className="empty-desc">
+                  Clique em "Gerar Quiz" para criar 8 questões de múltipla escolha sobre o seu conteúdo.
+                </div>
+                <button className="btn btn-primary" style={{marginTop:20}} onClick={generate}>
+                  {icons.sparkle} Gerar Quiz
+                </button>
+              </div>
+            )}
+
+            {!loading && questions.length > 0 && !finished && (
+              <div>
+                <div className="quiz-progress-bar">
+                  <div
+                    className="quiz-progress-fill"
+                    style={{width: `${((current) / questions.length) * 100}%`}}
+                  />
+                </div>
+
+                <div className="quiz-question-card">
+                  <div className="quiz-question-num">Questão {current + 1} de {questions.length}</div>
+                  <div className="quiz-question-text">{q.question}</div>
+                </div>
+
+                <div className="quiz-options">
+                  {q.options.map((opt, i) => {
+                    let cls = 'quiz-option';
+                    if (answered) {
+                      cls += ' answered';
+                      if (i === q.correct) cls += ' correct';
+                      else if (i === selected && i !== q.correct) cls += ' wrong';
+                    } else if (i === selected) {
+                      cls += ' selected';
+                    }
+                    return (
+                      <button
+                        key={i}
+                        className={cls}
+                        onClick={() => handleSelect(i)}
+                        disabled={answered}
+                      >
+                        <span className="option-letter">{optLetters[i]}</span>
+                        {opt}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {answered && (
+                  <div className={`quiz-feedback ${selected === q.correct ? 'correct' : 'wrong'}`}>
+                    {selected === q.correct
+                      ? `${icons.check} Correto! Muito bem!`
+                      : `${icons.cross} Incorreto. A resposta correta era: ${optLetters[q.correct]}`
+                    }
+                  </div>
+                )}
+
+                <div className="quiz-nav">
+                  <span style={{fontSize:13, color:'#444'}}>
+                    {answered ? (selected === q.correct ? '✓ Acertou' : '✕ Errou') : 'Selecione uma opção'}
+                  </span>
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleNext}
+                    disabled={!answered}
+                  >
+                    {current < questions.length - 1 ? 'Próxima' : 'Ver Resultado'} {icons.right}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!loading && finished && (
+              <div className="quiz-results">
+                <div className="results-emoji">{getResultEmoji()}</div>
+                <div className="results-title">
+                  {getPercentage() >= 70 ? 'Parabéns!' : 'Continue estudando!'}
+                </div>
+                <div className="results-score">{getPercentage()}%</div>
+                <div className="results-detail">
+                  Você acertou {score} de {questions.length} questões
+                </div>
+                <div style={{display:'flex', gap:12, justifyContent:'center'}}>
+                  <button className="btn btn-secondary" onClick={resetQuiz}>
+                    {icons.refresh} Refazer Quiz
+                  </button>
+                  <button className="btn btn-primary" onClick={generate}>
+                    {icons.sparkle} Novo Quiz
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ─── App Root ─────────────────────────────────────────────────────────────
+    function App() {
+      const [section, setSection] = useState('content');
+      const [content, setContent] = useState(() => localStorage.getItem('dybass_content') || '');
+
+      const handleContentChange = (val) => {
+        setContent(val);
+      };
+
+      const navItems = [
+        { id: 'content',    label: 'Conteúdo',   icon: icons.content },
+        { id: 'summary',    label: 'Resumo',      icon: icons.summary },
+        { id: 'flashcards', label: 'Flashcards',  icon: icons.flashcards },
+        { id: 'quiz',       label: 'Quiz',        icon: icons.quiz },
+      ];
+
+      return (
+        <div id="root" style={{display:'flex', height:'100vh', width:'100%'}}>
+          {/* Sidebar */}
+          <div className="sidebar">
+            <div className="sidebar-logo">
+              <h1>Dybass</h1>
+              <span>Estudioso</span>
+            </div>
+            <nav className="sidebar-nav">
+              {navItems.map(item => (
+                <button
+                  key={item.id}
+                  className={`nav-item ${section === item.id ? 'active' : ''}`}
+                  onClick={() => setSection(item.id)}
+                >
+                  <span className="nav-icon">{item.icon}</span>
+                  {item.label}
+                </button>
+              ))}
+            </nav>
+            <div className="sidebar-footer">
+              Powered by Claude AI
+            </div>
+          </div>
+
+          {/* Main */}
+          <div className="main">
+            {section === 'content' && (
+              <ContentSection content={content} onContentChange={handleContentChange} />
+            )}
+            {section === 'summary' && (
+              <SummarySection content={content} />
+            )}
+            {section === 'flashcards' && (
+              <FlashcardsSection content={content} />
+            )}
+            {section === 'quiz' && (
+              <QuizSection content={content} />
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
