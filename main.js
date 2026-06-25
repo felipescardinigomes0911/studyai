@@ -1,5 +1,6 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 let mainWindow;
 
@@ -22,6 +23,27 @@ function createWindow() {
   mainWindow.loadFile('index.html');
   mainWindow.setMenuBarVisibility(false);
 }
+
+// Salva conteúdo em arquivo usando o diálogo nativo do sistema.
+ipcMain.handle('export-file', async (event, { defaultName, content, filters }) => {
+  try {
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+      title: 'Exportar',
+      defaultPath: defaultName,
+      filters: filters || [{ name: 'Todos os arquivos', extensions: ['*'] }],
+    });
+    if (canceled || !filePath) return { success: false, canceled: true };
+    fs.writeFileSync(filePath, content, 'utf-8');
+    return { success: true, path: filePath };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Informa ao renderer se há chave de API configurada (para sugerir modo offline).
+ipcMain.handle('has-api-key', async () => {
+  return !!process.env.ANTHROPIC_API_KEY;
+});
 
 app.whenReady().then(() => {
   createWindow();

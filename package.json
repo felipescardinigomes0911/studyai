@@ -5,7 +5,10 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder"
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:linux": "electron-builder --linux",
+    "build:all": "electron-builder --win --linux"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0"
@@ -17,6 +20,13 @@
   "build": {
     "appId": "com.dybass.estudioso",
     "productName": "Dybass Estudioso",
+    "files": [
+      "main.js",
+      "preload.js",
+      "offline.js",
+      "index.html",
+      "assets/**/*"
+    ],
     "linux": {
       "target": "AppImage",
       "icon": "assets/icon.png",
@@ -25,6 +35,21 @@
         "Name": "Dybass Estudioso",
         "Comment": "App de estudos inteligente"
       }
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Dybass Estudioso"
     }
   }
 }

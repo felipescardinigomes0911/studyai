@@ -1,52 +1,78 @@
 #!/usr/bin/env python3
-"""Generate a PNG icon for Dybass Estudioso using Pillow."""
+"""Gera o icone do Dybass Estudioso (256x256 PNG) sem dependencias externas.
 
-try:
-    from PIL import Image, ImageDraw, ImageFont
-    import math
+Desenha um livro vermelho escuro sobre fundo preto com a letra "D".
+Usa apenas a biblioteca padrao (zlib + struct) para escrever o PNG, garantindo
+o tamanho minimo de 256x256 exigido pelo electron-builder no Windows.
+"""
+import struct
+import zlib
 
-    size = 512
-    img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
+SIZE = 256
+BG = (10, 10, 10)          # #0a0a0a fundo
+DARK_RED = (139, 0, 0)     # #8b0000 capa do livro
+RED = (192, 57, 43)        # #c0392b detalhe
+WHITE = (240, 240, 240)    # letra
 
-    # Background rounded rect
-    bg_color = (10, 0, 0, 255)
-    acc_color = (139, 0, 0, 255)
-    light_acc = (192, 57, 43, 255)
+px = [[BG for _ in range(SIZE)] for _ in range(SIZE)]
 
-    # Draw background circle
-    draw.ellipse([0, 0, size-1, size-1], fill=(18, 0, 0, 255))
 
-    # Draw book left page
-    draw.rounded_rectangle([90, 110, 255, 320], radius=14, fill=acc_color)
-    # Draw book right page
-    draw.rounded_rectangle([257, 110, 422, 320], radius=14, fill=light_acc)
+def rounded_rect(x0, y0, x1, y1, r, color):
+    for y in range(int(y0), int(y1)):
+        for x in range(int(x0), int(x1)):
+            dx = min(x - x0, x1 - 1 - x)
+            dy = min(y - y0, y1 - 1 - y)
+            if dx < r and dy < r:
+                if (r - dx) ** 2 + (r - dy) ** 2 > r * r:
+                    continue
+            if 0 <= x < SIZE and 0 <= y < SIZE:
+                px[y][x] = color
 
-    # Lines on left page
-    for y in [155, 180, 205, 230, 255]:
-        w = [95, 70, 85, 65, 80][((y-155)//25)]
-        draw.rounded_rectangle([110, y, 110+w, y+8], radius=4, fill=(80, 0, 0, 200))
 
-    # Lines on right page
-    for y in [155, 180, 205, 230, 255]:
-        w = [95, 70, 85, 65, 80][((y-155)//25)]
-        draw.rounded_rectangle([272, y, 272+w, y+8], radius=4, fill=(160, 30, 20, 200))
+def rect(x0, y0, x1, y1, color):
+    for y in range(int(y0), int(y1)):
+        for x in range(int(x0), int(x1)):
+            if 0 <= x < SIZE and 0 <= y < SIZE:
+                px[y][x] = color
 
-    # Spine
-    draw.rounded_rectangle([250, 110, 260, 320], radius=4, fill=(60, 0, 0, 255))
 
-    # Letter D
-    try:
-        font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf', 140)
-    except:
-        font = ImageFont.load_default()
+# Livro: capa vermelho escuro arredondada
+rounded_rect(48, 40, 208, 216, 22, DARK_RED)
+# Lombada (faixa mais clara a esquerda)
+rect(48, 40, 78, 216, RED)
+rect(74, 40, 80, 216, (90, 0, 0))
+# Paginas (faixa branca fina na direita)
+rect(198, 52, 208, 204, (220, 220, 220))
 
-    draw.text((256, 340), 'D', font=font, fill=(255, 255, 255, 230), anchor='mm' if hasattr(font, 'getbbox') else None)
+# Letra "D" branca estilizada no centro da capa
+rect(108, 80, 124, 176, WHITE)       # haste vertical
+rect(124, 80, 160, 92, WHITE)        # topo
+rect(124, 164, 160, 176, WHITE)      # base
+rect(156, 88, 172, 168, WHITE)       # lado direito
+rect(148, 84, 164, 96, WHITE)        # canto sup.
+rect(148, 160, 164, 172, WHITE)      # canto inf.
 
-    img.save('icon.png', 'PNG')
-    print("icon.png created successfully")
 
-except ImportError:
-    print("Pillow not available, using SVG only")
-except Exception as e:
-    print(f"Error: {e}")
+def write_png(path):
+    raw = bytearray()
+    for y in range(SIZE):
+        raw.append(0)  # filtro None por linha
+        for x in range(SIZE):
+            raw.extend(px[y][x])
+    compressed = zlib.compress(bytes(raw), 9)
+
+    def chunk(tag, data):
+        c = struct.pack(">I", len(data)) + tag + data
+        c += struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+        return c
+
+    with open(path, "wb") as f:
+        f.write(b"\x89PNG\r\n\x1a\n")
+        f.write(chunk(b"IHDR", struct.pack(">IIBBBBB", SIZE, SIZE, 8, 2, 0, 0, 0)))
+        f.write(chunk(b"IDAT", compressed))
+        f.write(chunk(b"IEND", b""))
+
+
+if __name__ == "__main__":
+    write_png("icon.png")
+    print("icon.png (256x256) gerado.")

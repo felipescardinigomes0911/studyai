@@ -7,6 +7,7 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="offline.js"></script>
   <style>
     * {
       margin: 0;
@@ -644,6 +645,88 @@
     }
 
     .badge-red { background: #1a0000; color: #c0392b; border: 1px solid #3a0000; }
+    .badge-offline { background: #0a1a0a; color: #5cb85c; border: 1px solid #1a3a1a; }
+
+    /* Mode toggle in sidebar */
+    .mode-toggle {
+      padding: 14px 16px;
+      border-top: 1px solid #1a1a1a;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .mode-toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .mode-label {
+      font-size: 12px;
+      color: #888;
+      font-weight: 500;
+    }
+
+    .switch {
+      position: relative;
+      width: 40px;
+      height: 22px;
+      flex-shrink: 0;
+    }
+
+    .switch input { opacity: 0; width: 0; height: 0; }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      inset: 0;
+      background: #2a2a2a;
+      border-radius: 22px;
+      transition: 0.2s;
+    }
+
+    .slider:before {
+      content: '';
+      position: absolute;
+      height: 16px;
+      width: 16px;
+      left: 3px;
+      bottom: 3px;
+      background: #ccc;
+      border-radius: 50%;
+      transition: 0.2s;
+    }
+
+    input:checked + .slider { background: #2d7a2d; }
+    input:checked + .slider:before { transform: translateX(18px); background: #fff; }
+
+    .mode-hint {
+      font-size: 10px;
+      color: #444;
+      line-height: 1.4;
+    }
+
+    .export-bar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .btn-sm {
+      padding: 7px 14px;
+      font-size: 12px;
+    }
+
+    .export-toast {
+      font-size: 12px;
+      color: #5cb85c;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
   </style>
 </head>
 <body>
@@ -671,6 +754,60 @@
       ok:         '👍',
       sparkle:    '✨',
     };
+
+    // ─── Motor de IA (online via API ou offline local) ───────────────────────
+    async function runAI(offline, method, ...args) {
+      const engine = offline ? window.offlineAI : window.electronAPI;
+      if (!engine || typeof engine[method] !== 'function') {
+        return { success: false, error: offline
+          ? 'Motor offline indisponível.'
+          : 'API indisponível. Ative o Modo Offline na barra lateral.' };
+      }
+      return await Promise.resolve(engine[method](...args));
+    }
+
+    // ─── Exportação de arquivos ──────────────────────────────────────────────
+    async function exportData(defaultName, content, mime) {
+      // Em Electron usa o diálogo nativo; senão faz download via blob.
+      if (window.electronAPI && window.electronAPI.exportFile) {
+        const ext = defaultName.split('.').pop();
+        const result = await window.electronAPI.exportFile({
+          defaultName,
+          content,
+          filters: [{ name: ext.toUpperCase(), extensions: [ext] }],
+        });
+        return result;
+      }
+      try {
+        const blob = new Blob([content], { type: mime || 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = defaultName;
+        a.click();
+        URL.revokeObjectURL(url);
+        return { success: true };
+      } catch (e) {
+        return { success: false, error: e.message };
+      }
+    }
+
+    function flashcardsToAnki(cards) {
+      // Formato TSV compatível com importação do Anki: pergunta<TAB>resposta.
+      return cards
+        .map(c => {
+          const front = String(c.front).replace(/\t/g, ' ').replace(/\n/g, '<br>');
+          const back = String(c.back).replace(/\t/g, ' ').replace(/\n/g, '<br>');
+          return front + '\t' + back;
+        })
+        .join('\n');
+    }
+
+    function flashcardsToCSV(cards) {
+      const esc = v => '"' + String(v).replace(/"/g, '""') + '"';
+      return 'Pergunta,Resposta\n' +
+        cards.map(c => esc(c.front) + ',' + esc(c.back)).join('\n');
+    }
 
     // ─── Content Section ─────────────────────────────────────────────────────
     function ContentSection({ content, onContentChange }) {
@@ -730,7 +867,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
     }
 
     // ─── Summary Section ──────────────────────────────────────────────────────
-    function SummarySection({ content }) {
+    function SummarySection({ content, offline }) {
       const [summary, setSummary] = useState(() => localStorage.getItem('dybass_summary') || '');
       const [summaryType, setSummaryType] = useState(() => localStorage.getItem('dybass_summary_type') || '');
       const [loading, setLoading] = useState(false);
@@ -744,7 +881,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
         setLoading(true);
         setError('');
         try {
-          const result = await window.electronAPI.generateSummary(content, type);
+          const result = await runAI(offline, 'generateSummary', content, type);
           if (result.success) {
             setSummary(result.data);
             setSummaryType(type);
@@ -823,7 +960,8 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
     }
 
     // ─── Flashcards Section ───────────────────────────────────────────────────
-    function FlashcardsSection({ content }) {
+    function FlashcardsSection({ content, offline }) {
+      const [exportMsg, setExportMsg] = useState('');
       const [cards, setCards] = useState(() => {
         try { return JSON.parse(localStorage.getItem('dybass_flashcards') || '[]'); } catch { return []; }
       });
@@ -841,7 +979,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
         setLoading(true);
         setError('');
         try {
-          const result = await window.electronAPI.generateFlashcards(content);
+          const result = await runAI(offline, 'generateFlashcards', content);
           if (result.success) {
             setCards(result.data);
             setCurrent(0);
@@ -866,6 +1004,32 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
       const prev = () => { if (current > 0) goTo(current - 1); };
       const next = () => { if (current < cards.length - 1) goTo(current + 1); };
 
+      const doExport = async (format) => {
+        if (!cards.length) return;
+        let name, data, mime;
+        if (format === 'anki') {
+          name = 'flashcards-dybass-anki.txt';
+          data = flashcardsToAnki(cards);
+          mime = 'text/plain';
+        } else if (format === 'csv') {
+          name = 'flashcards-dybass.csv';
+          data = flashcardsToCSV(cards);
+          mime = 'text/csv';
+        } else {
+          name = 'flashcards-dybass.json';
+          data = JSON.stringify(cards, null, 2);
+          mime = 'application/json';
+        }
+        const res = await exportData(name, data, mime);
+        if (res.success) {
+          setExportMsg('Exportado!');
+          setTimeout(() => setExportMsg(''), 2500);
+        } else if (!res.canceled) {
+          setExportMsg('Falha ao exportar');
+          setTimeout(() => setExportMsg(''), 2500);
+        }
+      };
+
       const card = cards[current];
 
       return (
@@ -875,11 +1039,27 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
             <p>Estude com cartões de pergunta e resposta — clique no card para virar</p>
           </div>
           <div className="page-content">
-            <div style={{display:'flex', gap:12, marginBottom:24}}>
+            <div className="export-bar" style={{marginBottom:24}}>
               <button className="btn btn-primary" onClick={generate} disabled={loading}>
                 {loading ? <span className="loading-spinner" /> : icons.sparkle}
                 {cards.length ? 'Gerar Novos' : 'Gerar Flashcards'}
               </button>
+              {cards.length > 0 && !loading && (
+                <React.Fragment>
+                  <div style={{width:1, height:24, background:'#222', margin:'0 4px'}} />
+                  <span style={{fontSize:12, color:'#555'}}>Exportar:</span>
+                  <button className="btn btn-secondary btn-sm" onClick={() => doExport('anki')} title="Arquivo de texto para importar no Anki">
+                    {icons.save} Anki
+                  </button>
+                  <button className="btn btn-secondary btn-sm" onClick={() => doExport('csv')} title="Planilha CSV">
+                    {icons.save} CSV
+                  </button>
+                  <button className="btn btn-secondary btn-sm" onClick={() => doExport('json')} title="Arquivo JSON">
+                    {icons.save} JSON
+                  </button>
+                  {exportMsg && <span className="export-toast">{icons.check} {exportMsg}</span>}
+                </React.Fragment>
+              )}
             </div>
 
             {error && (
@@ -956,7 +1136,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
     }
 
     // ─── Quiz Section ─────────────────────────────────────────────────────────
-    function QuizSection({ content }) {
+    function QuizSection({ content, offline }) {
       const [questions, setQuestions] = useState(() => {
         try { return JSON.parse(localStorage.getItem('dybass_quiz') || '[]'); } catch { return []; }
       });
@@ -976,7 +1156,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
         setLoading(true);
         setError('');
         try {
-          const result = await window.electronAPI.generateQuiz(content);
+          const result = await runAI(offline, 'generateQuiz', content);
           if (result.success) {
             setQuestions(result.data);
             localStorage.setItem('dybass_quiz', JSON.stringify(result.data));
@@ -1165,6 +1345,27 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
     function App() {
       const [section, setSection] = useState('content');
       const [content, setContent] = useState(() => localStorage.getItem('dybass_content') || '');
+      const [offline, setOffline] = useState(() => localStorage.getItem('dybass_offline') === 'true');
+
+      // Se não houver chave de API configurada, ativa o modo offline por padrão.
+      useEffect(() => {
+        if (localStorage.getItem('dybass_offline') === null && window.electronAPI && window.electronAPI.hasApiKey) {
+          window.electronAPI.hasApiKey().then(has => {
+            if (!has) {
+              setOffline(true);
+              localStorage.setItem('dybass_offline', 'true');
+            }
+          });
+        }
+      }, []);
+
+      const toggleOffline = () => {
+        setOffline(prev => {
+          const next = !prev;
+          localStorage.setItem('dybass_offline', String(next));
+          return next;
+        });
+      };
 
       const handleContentChange = (val) => {
         setContent(val);
@@ -1197,8 +1398,24 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
                 </button>
               ))}
             </nav>
+            <div className="mode-toggle">
+              <div className="mode-toggle-row">
+                <span className="mode-label">
+                  {offline ? '🔌 Modo Offline' : '☁️ Modo Online'}
+                </span>
+                <label className="switch">
+                  <input type="checkbox" checked={offline} onChange={toggleOffline} />
+                  <span className="slider" />
+                </label>
+              </div>
+              <div className="mode-hint">
+                {offline
+                  ? 'Gera tudo localmente, sem internet ou chave de API.'
+                  : 'Usa a IA Claude (requer chave de API e internet).'}
+              </div>
+            </div>
             <div className="sidebar-footer">
-              Powered by Claude AI
+              {offline ? 'Processamento local' : 'Powered by Claude AI'}
             </div>
           </div>
 
@@ -1208,13 +1425,13 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
               <ContentSection content={content} onContentChange={handleContentChange} />
             )}
             {section === 'summary' && (
-              <SummarySection content={content} />
+              <SummarySection content={content} offline={offline} />
             )}
             {section === 'flashcards' && (
-              <FlashcardsSection content={content} />
+              <FlashcardsSection content={content} offline={offline} />
             )}
             {section === 'quiz' && (
-              <QuizSection content={content} />
+              <QuizSection content={content} offline={offline} />
             )}
           </div>
         </div>
