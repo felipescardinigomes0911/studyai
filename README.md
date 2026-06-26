@@ -20,6 +20,14 @@ a partir do conteúdo que você inserir. Visual preto e vermelho escuro.
   tema claro pelo botão na barra lateral.
 - **Estatísticas** — acompanhe quizzes feitos, acerto médio, melhor resultado,
   flashcards e resumos gerados, com gráfico de evolução dos últimos quizzes.
+- **Revisão espaçada** — no modo Revisão dos flashcards, marque "Errei" ou
+  "Acertei"; os cartões errados voltam ao fim da fila até você acertar todos.
+- **Busca no conteúdo** — campo de busca na seção Conteúdo, com contagem de
+  resultados e navegação entre as ocorrências.
+- **Atalhos de teclado**:
+  - Flashcards: `←`/`→` navegar · `Espaço`/`Enter` virar · `1` Errei · `2` Acertei
+  - Quiz: `1`–`4` (ou `A`–`D`) responder · `Enter` avançar
+  - Busca: `Enter` próximo · `Shift+Enter` anterior
 
 ## Como rodar (desenvolvimento)
 

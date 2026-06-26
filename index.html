@@ -813,6 +813,48 @@
     }
     .btn-danger:hover:not(:disabled) { color: #e05555; border-color: #7a0000; }
 
+    .btn-success {
+      background: #1a3a1a;
+      color: #5cb85c;
+      border: 1px solid #2d7a2d;
+    }
+    .btn-success:hover:not(:disabled) { background: #234d23; color: #7ed87e; }
+
+    .search-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      background: #111;
+      border: 1px solid #1e1e1e;
+      border-radius: 8px;
+      padding: 6px 10px;
+    }
+
+    .search-icon { font-size: 13px; opacity: 0.6; }
+
+    .search-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #e8e8e8;
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    .search-input::placeholder { color: #444; }
+
+    .search-count {
+      font-size: 12px;
+      color: #777;
+      white-space: nowrap;
+    }
+
+    body.light .search-bar { background: #fff; border-color: #e0e0e0; }
+    body.light .search-input { color: #1a1a1a; }
+    body.light .search-input::placeholder { color: #aaa; }
+
     /* ─── Tema claro (preto vira branco; vermelho permanece) ─────────────── */
     body.light { background: #f4f4f5; color: #1a1a1a; }
     body.light ::-webkit-scrollbar-track { background: #e0e0e0; }
@@ -1005,7 +1047,38 @@
       const [saved, setSaved] = useState(false);
       const [importing, setImporting] = useState(false);
       const [importError, setImportError] = useState('');
+      const [search, setSearch] = useState('');
+      const [matchIdx, setMatchIdx] = useState(0);
       const fileInputRef = React.useRef(null);
+      const textareaRef = React.useRef(null);
+
+      // Posições de todas as ocorrências da busca (case-insensitive).
+      const matches = React.useMemo(() => {
+        if (!search.trim()) return [];
+        const out = [];
+        const hay = content.toLowerCase();
+        const needle = search.toLowerCase();
+        let i = hay.indexOf(needle);
+        while (i !== -1) {
+          out.push(i);
+          i = hay.indexOf(needle, i + needle.length);
+        }
+        return out;
+      }, [search, content]);
+
+      const jumpToMatch = (idx) => {
+        if (matches.length === 0 || !textareaRef.current) return;
+        const safe = ((idx % matches.length) + matches.length) % matches.length;
+        setMatchIdx(safe);
+        const start = matches[safe];
+        const ta = textareaRef.current;
+        ta.focus();
+        ta.setSelectionRange(start, start + search.length);
+        // Aproxima a seleção do topo visível da textarea.
+        const before = content.slice(0, start).split('\n').length;
+        const lineHeight = 26;
+        ta.scrollTop = Math.max(0, (before - 3) * lineHeight);
+      };
 
       const handleSave = () => {
         localStorage.setItem('dybass_content', content);
@@ -1041,7 +1114,34 @@
             <p>Cole ou digite o material que deseja estudar</p>
           </div>
           <div className="page-content">
+            {content.trim() && (
+              <div className="search-bar">
+                <span className="search-icon">🔍</span>
+                <input
+                  className="search-input"
+                  type="text"
+                  placeholder="Buscar no conteúdo..."
+                  value={search}
+                  onChange={e => { setSearch(e.target.value); setMatchIdx(0); }}
+                  onKeyDown={e => { if (e.key === 'Enter') jumpToMatch(matchIdx + (e.shiftKey ? -1 : 1)); }}
+                />
+                {search.trim() && (
+                  <React.Fragment>
+                    <span className="search-count">
+                      {matches.length ? `${matches.length} resultado(s)` : 'nada encontrado'}
+                    </span>
+                    <button className="btn btn-secondary btn-sm" onClick={() => jumpToMatch(matchIdx - 1)} disabled={!matches.length}>
+                      {icons.left}
+                    </button>
+                    <button className="btn btn-secondary btn-sm" onClick={() => jumpToMatch(matchIdx + 1)} disabled={!matches.length}>
+                      {icons.right}
+                    </button>
+                  </React.Fragment>
+                )}
+              </div>
+            )}
             <textarea
+              ref={textareaRef}
               className="content-textarea"
               value={content}
               onChange={e => onContentChange(e.target.value)}
@@ -1206,6 +1306,33 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
       const [visited, setVisited] = useState(new Set());
       const [loading, setLoading] = useState(false);
       const [error, setError] = useState('');
+      // Revisão espaçada (sessão): fila de cartões a revisar.
+      const [reviewMode, setReviewMode] = useState(false);
+      const [queue, setQueue] = useState([]);
+      const [reviewStats, setReviewStats] = useState({ good: 0, again: 0 });
+
+      const startReview = () => {
+        setQueue(cards.map((_, i) => i));
+        setReviewStats({ good: 0, again: 0 });
+        setReviewMode(true);
+        setFlipped(false);
+      };
+
+      const exitReview = () => {
+        setReviewMode(false);
+        setQueue([]);
+        setFlipped(false);
+      };
+
+      // Acertei: remove o cartão da fila. Errei: manda para o fim (revisa depois).
+      const rateCard = (good) => {
+        setReviewStats(s => good ? { ...s, good: s.good + 1 } : { ...s, again: s.again + 1 });
+        setQueue(q => {
+          const [head, ...rest] = q;
+          return good ? rest : [...rest, head];
+        });
+        setFlipped(false);
+      };
 
       const generate = async () => {
         if (!content.trim()) {
@@ -1221,6 +1348,8 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
             setCurrent(0);
             setFlipped(false);
             setVisited(new Set());
+            setReviewMode(false);
+            setQueue([]);
             localStorage.setItem('dybass_flashcards', JSON.stringify(result.data));
             recordEvent('flashcardsGenerated');
           } else {
@@ -1240,6 +1369,26 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
 
       const prev = () => { if (current > 0) goTo(current - 1); };
       const next = () => { if (current < cards.length - 1) goTo(current + 1); };
+
+      // Atalhos de teclado: ←/→ navegar, Espaço/Enter virar, 1=Errei 2=Acertei.
+      useEffect(() => {
+        if (loading || cards.length === 0) return;
+        const onKey = (e) => {
+          if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+          if (e.code === 'Space' || e.code === 'Enter') {
+            e.preventDefault();
+            setFlipped(f => !f);
+          } else if (reviewMode && queue.length > 0) {
+            if (e.key === '1') rateCard(false);
+            else if (e.key === '2') rateCard(true);
+          } else if (!reviewMode) {
+            if (e.key === 'ArrowLeft') prev();
+            else if (e.key === 'ArrowRight') next();
+          }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+      }, [loading, cards.length, reviewMode, queue, current]);
 
       const doExport = async (format) => {
         if (!cards.length) return;
@@ -1267,13 +1416,14 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
         }
       };
 
-      const card = cards[current];
+      const reviewIdx = reviewMode && queue.length > 0 ? queue[0] : null;
+      const card = reviewMode ? cards[reviewIdx] : cards[current];
 
       return (
         <div>
           <div className="page-header">
             <h2>Flashcards</h2>
-            <p>Estude com cartões de pergunta e resposta — clique no card para virar</p>
+            <p>Estude com cartões — clique para virar · ← → navega · Espaço vira</p>
           </div>
           <div className="page-content">
             <div className="export-bar" style={{marginBottom:24}}>
@@ -1281,7 +1431,17 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
                 {loading ? <span className="loading-spinner" /> : icons.sparkle}
                 {cards.length ? 'Gerar Novos' : 'Gerar Flashcards'}
               </button>
-              {cards.length > 0 && !loading && (
+              {cards.length > 0 && !loading && !reviewMode && (
+                <button className="btn btn-outline" onClick={startReview} title="Estuda em ciclo até acertar todos">
+                  {icons.brain} Modo Revisão
+                </button>
+              )}
+              {cards.length > 0 && !loading && reviewMode && (
+                <button className="btn btn-secondary" onClick={exitReview}>
+                  {icons.left} Sair da Revisão
+                </button>
+              )}
+              {cards.length > 0 && !loading && !reviewMode && (
                 <React.Fragment>
                   <div style={{width:1, height:24, background:'#222', margin:'0 4px'}} />
                   <span style={{fontSize:12, color:'#555'}}>Exportar:</span>
@@ -1313,10 +1473,31 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
               </div>
             )}
 
-            {!loading && cards.length > 0 && (
+            {!loading && cards.length > 0 && reviewMode && queue.length === 0 && (
+              <div className="quiz-results">
+                <div className="results-emoji">{icons.trophy}</div>
+                <div className="results-title">Revisão concluída!</div>
+                <div className="results-detail" style={{marginTop:12}}>
+                  Você revisou todos os {cards.length} cartões.
+                  {reviewStats.again > 0 && ` Repetiu ${reviewStats.again}x os difíceis.`}
+                </div>
+                <div style={{display:'flex', gap:12, justifyContent:'center', marginTop:24}}>
+                  <button className="btn btn-primary" onClick={startReview}>
+                    {icons.refresh} Revisar de Novo
+                  </button>
+                  <button className="btn btn-secondary" onClick={exitReview}>
+                    Voltar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!loading && cards.length > 0 && !(reviewMode && queue.length === 0) && (
               <div className="flashcard-container">
                 <div className="flashcard-progress">
-                  {current + 1} / {cards.length}
+                  {reviewMode
+                    ? `Revisão · faltam ${queue.length} · ✓ ${reviewStats.good} · ↺ ${reviewStats.again}`
+                    : `${current + 1} / ${cards.length}`}
                 </div>
 
                 <div
@@ -1336,25 +1517,36 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
                   </div>
                 </div>
 
-                <div className="flashcard-nav">
-                  <button className="btn btn-secondary" onClick={prev} disabled={current === 0}>
-                    {icons.left} Anterior
-                  </button>
-                  <div className="flashcard-dots">
-                    {cards.map((_, i) => (
-                      <div
-                        key={i}
-                        className={`dot ${i === current ? 'active' : visited.has(i) ? 'visited' : ''}`}
-                        onClick={() => goTo(i)}
-                        style={{cursor:'pointer'}}
-                        title={`Card ${i+1}`}
-                      />
-                    ))}
+                {reviewMode ? (
+                  <div className="flashcard-nav" style={{justifyContent:'center', gap:12}}>
+                    <button className="btn btn-outline" onClick={() => rateCard(false)} title="Tecla 1">
+                      {icons.refresh} Errei (revisar)
+                    </button>
+                    <button className="btn btn-success" onClick={() => rateCard(true)} title="Tecla 2">
+                      {icons.check} Acertei
+                    </button>
                   </div>
-                  <button className="btn btn-secondary" onClick={next} disabled={current === cards.length - 1}>
-                    Próximo {icons.right}
-                  </button>
-                </div>
+                ) : (
+                  <div className="flashcard-nav">
+                    <button className="btn btn-secondary" onClick={prev} disabled={current === 0}>
+                      {icons.left} Anterior
+                    </button>
+                    <div className="flashcard-dots">
+                      {cards.map((_, i) => (
+                        <div
+                          key={i}
+                          className={`dot ${i === current ? 'active' : visited.has(i) ? 'visited' : ''}`}
+                          onClick={() => goTo(i)}
+                          style={{cursor:'pointer'}}
+                          title={`Card ${i+1}`}
+                        />
+                      ))}
+                    </div>
+                    <button className="btn btn-secondary" onClick={next} disabled={current === cards.length - 1}>
+                      Próximo {icons.right}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1437,6 +1629,26 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
 
       const q = questions[current];
       const optLetters = ['A', 'B', 'C', 'D'];
+
+      // Atalhos: 1-4 (ou A-D) escolhem a opção, Enter avança.
+      useEffect(() => {
+        if (loading || finished || questions.length === 0) return;
+        const onKey = (e) => {
+          if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+          const cur = questions[current];
+          if (!cur) return;
+          if (!answered) {
+            const map = { '1':0, '2':1, '3':2, '4':3, 'a':0, 'b':1, 'c':2, 'd':3 };
+            const idx = map[e.key.toLowerCase()];
+            if (idx !== undefined && idx < cur.options.length) handleSelect(idx);
+          } else if (e.code === 'Enter' || e.code === 'Space') {
+            e.preventDefault();
+            handleNext();
+          }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+      }, [loading, finished, answered, current, questions]);
 
       const getPercentage = () => Math.round((score / questions.length) * 100);
       const getResultEmoji = () => {
