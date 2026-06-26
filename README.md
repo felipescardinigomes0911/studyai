@@ -60,6 +60,21 @@ cria atalhos na **área de trabalho** e no menu Iniciar automaticamente.
 > Para compilar o `.exe` do Windows a partir do Linux pode ser necessário ter o
 > `wine` instalado; o ideal é rodar `npm run build:win` no próprio Windows.
 
+### Build automático na nuvem (GitHub Actions)
+
+O repositório tem um workflow (`.github/workflows/build.yml`) que gera os
+instaladores automaticamente — **sem precisar compilar no seu PC**:
+
+- A cada `push`, o GitHub compila o `.exe` (Windows) e o `.AppImage` (Linux).
+- Baixe os instaladores em **Actions → (último build) → Artifacts**.
+- Para publicar uma versão oficial, crie uma tag começando com `v`:
+  ```bash
+  git tag v1.0.0 && git push origin v1.0.0
+  ```
+  O workflow cria um **Release** com os instaladores anexados.
+- Também é possível rodar manualmente em **Actions → Build Dybass Estudioso →
+  Run workflow**.
+
 ## Exportar para o Anki
 
 1. Gere os flashcards.
