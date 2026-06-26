@@ -14,6 +14,12 @@ a partir do conteúdo que você inserir. Visual preto e vermelho escuro.
   usando processamento de texto (frequência de termos, extração de sentenças e
   cloze deletion). Alterne no botão da barra lateral.
 - **Exportar flashcards** — para **Anki** (`.txt`), **CSV** ou **JSON**.
+- **Importar conteúdo** — carregue arquivos **PDF** ou **TXT/MD** direto na seção
+  Conteúdo (o texto é extraído automaticamente).
+- **Tema claro/escuro** — alterne entre o tema escuro (preto e vermelho) e o
+  tema claro pelo botão na barra lateral.
+- **Estatísticas** — acompanhe quizzes feitos, acerto médio, melhor resultado,
+  flashcards e resumos gerados, com gráfico de evolução dos últimos quizzes.
 
 ## Como rodar (desenvolvimento)
 

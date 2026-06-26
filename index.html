@@ -8,6 +8,13 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="offline.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+  </script>
   <style>
     * {
       margin: 0;
@@ -727,6 +734,134 @@
       align-items: center;
       gap: 5px;
     }
+
+    /* Statistics */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .stat-card {
+      background: #111;
+      border: 1px solid #1e1e1e;
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .stat-value {
+      font-size: 32px;
+      font-weight: 800;
+      color: #c0392b;
+      line-height: 1;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: #777;
+      margin-top: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .stats-section-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+      margin: 8px 0 16px;
+    }
+
+    .history-chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      height: 160px;
+      padding: 16px;
+      background: #111;
+      border: 1px solid #1e1e1e;
+      border-radius: 12px;
+      margin-bottom: 28px;
+    }
+
+    .history-bar-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      height: 100%;
+      justify-content: flex-end;
+    }
+
+    .history-bar {
+      width: 100%;
+      max-width: 36px;
+      background: linear-gradient(180deg, #c0392b, #8b0000);
+      border-radius: 4px 4px 0 0;
+      min-height: 4px;
+      transition: height 0.3s;
+    }
+
+    .history-bar-val { font-size: 11px; color: #888; }
+    .history-bar-date { font-size: 9px; color: #444; }
+
+    .btn-danger {
+      background: transparent;
+      color: #777;
+      border: 1px solid #2a2a2a;
+    }
+    .btn-danger:hover:not(:disabled) { color: #e05555; border-color: #7a0000; }
+
+    /* ─── Tema claro (preto vira branco; vermelho permanece) ─────────────── */
+    body.light { background: #f4f4f5; color: #1a1a1a; }
+    body.light ::-webkit-scrollbar-track { background: #e0e0e0; }
+    body.light .sidebar { background: #ececed; border-right-color: #dcdcdc; }
+    body.light .sidebar-logo { border-bottom-color: #dcdcdc; }
+    body.light .sidebar-logo h1 { color: #111; }
+    body.light .nav-item { color: #666; }
+    body.light .nav-item:hover { background: #e0e0e0; color: #222; }
+    body.light .nav-item.active { background: #ffe3e3; color: #111; }
+    body.light .sidebar-footer { color: #999; border-top-color: #dcdcdc; }
+    body.light .mode-toggle { border-top-color: #dcdcdc; }
+    body.light .mode-label { color: #555; }
+    body.light .mode-hint { color: #999; }
+    body.light .slider { background: #c4c4c4; }
+    body.light .page-header { background: #f4f4f5; border-bottom-color: #e0e0e0; }
+    body.light .page-header h2 { color: #111; }
+    body.light .page-header p { color: #888; }
+    body.light .btn-secondary { background: #e6e6e6; color: #333; border-color: #cdcdcd; }
+    body.light .btn-secondary:hover:not(:disabled) { background: #dadada; color: #000; }
+    body.light .btn-danger { color: #888; border-color: #cdcdcd; }
+    body.light .content-textarea { background: #fff; border-color: #d0d0d0; color: #1a1a1a; }
+    body.light .content-textarea::placeholder { color: #aaa; }
+    body.light .char-count { color: #999; }
+    body.light .summary-result { background: #fff; border-color: #e0e0e0; color: #222; }
+    body.light .summary-result h1, body.light .summary-result h2, body.light .summary-result h3 { color: #111; }
+    body.light .flashcard-front { background: #fff; border-color: #ddd; }
+    body.light .flashcard-back { background: #fff2f2; border-color: #e6b8b8; }
+    body.light .flashcard-text { color: #222; }
+    body.light .flashcard-front .flashcard-label { color: #888; }
+    body.light .flashcard-hint { color: #bbb; }
+    body.light .dot { background: #cfcfcf; }
+    body.light .dot.visited { background: #e6a8a8; }
+    body.light .quiz-score { background: #fff; border-color: #e0e0e0; color: #555; }
+    body.light .quiz-progress-bar { background: #dcdcdc; }
+    body.light .quiz-question-card { background: #fff; border-color: #e0e0e0; }
+    body.light .quiz-question-text { color: #111; }
+    body.light .quiz-option { background: #fafafa; border-color: #e0e0e0; color: #333; }
+    body.light .quiz-option:hover:not(.answered) { background: #fff2f2; color: #000; }
+    body.light .quiz-option.selected { background: #ededed; color: #111; border-color: #aaa; }
+    body.light .quiz-option.correct, body.light .quiz-option.reveal-correct { background: #eafaea; }
+    body.light .quiz-option.wrong { background: #fdeaea; }
+    body.light .option-letter { background: #e4e4e4; color: #777; }
+    body.light .quiz-results { background: #fff; border-color: #e0e0e0; }
+    body.light .results-title { color: #111; }
+    body.light .stat-card, body.light .history-chart { background: #fff; border-color: #e0e0e0; }
+    body.light .stats-section-title { color: #111; }
+    body.light .section-divider { background: #e0e0e0; }
+    body.light .empty-title { color: #777; }
+    body.light .empty-desc { color: #999; }
   </style>
 </head>
 <body>
@@ -753,6 +888,11 @@
       sad:        '😞',
       ok:         '👍',
       sparkle:    '✨',
+      stats:      '📊',
+      sun:        '☀️',
+      moon:       '🌙',
+      upload:     '📁',
+      trash:      '🗑️',
     };
 
     // ─── Motor de IA (online via API ou offline local) ───────────────────────
@@ -809,14 +949,89 @@
         cards.map(c => esc(c.front) + ',' + esc(c.back)).join('\n');
     }
 
+    // ─── Estatísticas de estudo ──────────────────────────────────────────────
+    function loadStats() {
+      try {
+        return JSON.parse(localStorage.getItem('dybass_stats')) || {};
+      } catch { return {}; }
+    }
+
+    function defaultStats() {
+      return { quizzes: [], flashcardsGenerated: 0, summariesGenerated: 0 };
+    }
+
+    function getStats() {
+      return Object.assign(defaultStats(), loadStats());
+    }
+
+    function saveStats(stats) {
+      localStorage.setItem('dybass_stats', JSON.stringify(stats));
+    }
+
+    function recordQuiz(score, total) {
+      const s = getStats();
+      s.quizzes.push({ date: Date.now(), score, total, pct: Math.round((score / total) * 100) });
+      if (s.quizzes.length > 100) s.quizzes = s.quizzes.slice(-100);
+      saveStats(s);
+    }
+
+    function recordEvent(key) {
+      const s = getStats();
+      s[key] = (s[key] || 0) + 1;
+      saveStats(s);
+    }
+
+    // ─── Importação de arquivos (TXT / PDF) ──────────────────────────────────
+    async function extractTextFromFile(file) {
+      const name = file.name.toLowerCase();
+      if (name.endsWith('.pdf')) {
+        if (!window.pdfjsLib) throw new Error('Leitor de PDF não carregou. Verifique a conexão.');
+        const buf = await file.arrayBuffer();
+        const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+        let text = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const tc = await page.getTextContent();
+          text += tc.items.map(it => it.str).join(' ') + '\n\n';
+        }
+        return text.trim();
+      }
+      // TXT, MD e similares
+      return await file.text();
+    }
+
     // ─── Content Section ─────────────────────────────────────────────────────
     function ContentSection({ content, onContentChange }) {
       const [saved, setSaved] = useState(false);
+      const [importing, setImporting] = useState(false);
+      const [importError, setImportError] = useState('');
+      const fileInputRef = React.useRef(null);
 
       const handleSave = () => {
         localStorage.setItem('dybass_content', content);
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
+      };
+
+      const handleImport = async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        setImporting(true);
+        setImportError('');
+        try {
+          const text = await extractTextFromFile(file);
+          if (!text.trim()) throw new Error('Nenhum texto extraído do arquivo.');
+          // Acrescenta ao conteúdo existente (ou substitui se vazio).
+          const merged = content.trim() ? content + '\n\n' + text : text;
+          onContentChange(merged);
+          localStorage.setItem('dybass_content', merged);
+          setSaved(true);
+          setTimeout(() => setSaved(false), 2000);
+        } catch (err) {
+          setImportError('Erro ao importar: ' + err.message);
+        }
+        setImporting(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
       };
 
       return (
@@ -840,6 +1055,20 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
               <button className="btn btn-primary" onClick={handleSave} disabled={!content.trim()}>
                 {icons.save} Salvar Conteúdo
               </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".txt,.md,.text,.pdf"
+                style={{display:'none'}}
+                onChange={handleImport}
+              />
+              <button
+                className="btn btn-secondary"
+                onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                disabled={importing}
+              >
+                {importing ? <span className="loading-spinner" /> : icons.upload} Importar PDF/TXT
+              </button>
               {saved && (
                 <span className="saved-badge">
                   {icons.check} Salvo com sucesso
@@ -851,6 +1080,12 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
                 </span>
               )}
             </div>
+
+            {importError && (
+              <div className="error-banner" style={{marginTop: 16}}>
+                {icons.cross} {importError}
+              </div>
+            )}
 
             {!content.trim() && (
               <div className="empty-state" style={{marginTop: 32}}>
@@ -887,6 +1122,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
             setSummaryType(type);
             localStorage.setItem('dybass_summary', result.data);
             localStorage.setItem('dybass_summary_type', type);
+            recordEvent('summariesGenerated');
           } else {
             setError('Erro ao gerar resumo: ' + result.error);
           }
@@ -986,6 +1222,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
             setFlipped(false);
             setVisited(new Set());
             localStorage.setItem('dybass_flashcards', JSON.stringify(result.data));
+            recordEvent('flashcardsGenerated');
           } else {
             setError('Erro ao gerar flashcards: ' + result.error);
           }
@@ -1193,6 +1430,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
           setSelected(null);
           setAnswered(false);
         } else {
+          recordQuiz(score, questions.length);
           setFinished(true);
         }
       };
@@ -1341,11 +1579,105 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
       );
     }
 
+    // ─── Statistics Section ───────────────────────────────────────────────────
+    function StatsSection() {
+      const [stats, setStats] = useState(() => getStats());
+
+      const quizzes = stats.quizzes || [];
+      const totalQuizzes = quizzes.length;
+      const avgPct = totalQuizzes
+        ? Math.round(quizzes.reduce((s, q) => s + q.pct, 0) / totalQuizzes)
+        : 0;
+      const bestPct = totalQuizzes ? Math.max(...quizzes.map(q => q.pct)) : 0;
+      const recent = quizzes.slice(-12);
+
+      const reset = () => {
+        if (confirm('Apagar todo o histórico de estatísticas?')) {
+          saveStats(defaultStats());
+          setStats(getStats());
+        }
+      };
+
+      const fmtDate = (ts) => {
+        const d = new Date(ts);
+        return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
+      };
+
+      return (
+        <div>
+          <div className="page-header">
+            <h2>Estatísticas</h2>
+            <p>Acompanhe seu progresso de estudo</p>
+          </div>
+          <div className="page-content">
+            <div className="stats-grid">
+              <div className="stat-card">
+                <div className="stat-value">{totalQuizzes}</div>
+                <div className="stat-label">Quizzes feitos</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">{avgPct}%</div>
+                <div className="stat-label">Acerto médio</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">{bestPct}%</div>
+                <div className="stat-label">Melhor resultado</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">{stats.flashcardsGenerated || 0}</div>
+                <div className="stat-label">Flashcards gerados</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">{stats.summariesGenerated || 0}</div>
+                <div className="stat-label">Resumos gerados</div>
+              </div>
+            </div>
+
+            <div className="stats-section-title">Evolução nos últimos quizzes</div>
+            {recent.length > 0 ? (
+              <div className="history-chart">
+                {recent.map((q, i) => (
+                  <div className="history-bar-wrap" key={i} title={`${q.score}/${q.total}`}>
+                    <span className="history-bar-val">{q.pct}%</span>
+                    <div className="history-bar" style={{height: `${Math.max(q.pct, 3)}%`}} />
+                    <span className="history-bar-date">{fmtDate(q.date)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-state">
+                <div className="empty-icon">{icons.stats}</div>
+                <div className="empty-title">Ainda sem dados</div>
+                <div className="empty-desc">
+                  Faça um quiz na seção "Quiz" para começar a registrar seu progresso.
+                </div>
+              </div>
+            )}
+
+            {totalQuizzes > 0 && (
+              <button className="btn btn-danger btn-sm" onClick={reset}>
+                {icons.trash} Limpar estatísticas
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     // ─── App Root ─────────────────────────────────────────────────────────────
     function App() {
       const [section, setSection] = useState('content');
       const [content, setContent] = useState(() => localStorage.getItem('dybass_content') || '');
       const [offline, setOffline] = useState(() => localStorage.getItem('dybass_offline') === 'true');
+      const [theme, setTheme] = useState(() => localStorage.getItem('dybass_theme') || 'dark');
+
+      // Aplica o tema ao <body>.
+      useEffect(() => {
+        document.body.classList.toggle('light', theme === 'light');
+        localStorage.setItem('dybass_theme', theme);
+      }, [theme]);
+
+      const toggleTheme = () => setTheme(t => (t === 'dark' ? 'light' : 'dark'));
 
       // Se não houver chave de API configurada, ativa o modo offline por padrão.
       useEffect(() => {
@@ -1376,6 +1708,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
         { id: 'summary',    label: 'Resumo',      icon: icons.summary },
         { id: 'flashcards', label: 'Flashcards',  icon: icons.flashcards },
         { id: 'quiz',       label: 'Quiz',        icon: icons.quiz },
+        { id: 'stats',      label: 'Estatísticas', icon: icons.stats },
       ];
 
       return (
@@ -1399,6 +1732,15 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
               ))}
             </nav>
             <div className="mode-toggle">
+              <div className="mode-toggle-row">
+                <span className="mode-label">
+                  {theme === 'dark' ? '🌙 Tema Escuro' : '☀️ Tema Claro'}
+                </span>
+                <label className="switch">
+                  <input type="checkbox" checked={theme === 'light'} onChange={toggleTheme} />
+                  <span className="slider" />
+                </label>
+              </div>
               <div className="mode-toggle-row">
                 <span className="mode-label">
                   {offline ? '🔌 Modo Offline' : '☁️ Modo Online'}
@@ -1432,6 +1774,9 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
             )}
             {section === 'quiz' && (
               <QuizSection content={content} offline={offline} />
+            )}
+            {section === 'stats' && (
+              <StatsSection />
             )}
           </div>
         </div>
