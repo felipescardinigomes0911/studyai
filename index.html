@@ -855,6 +855,98 @@
     body.light .search-input { color: #1a1a1a; }
     body.light .search-input::placeholder { color: #aaa; }
 
+    /* ─── Onboarding / Boas-vindas ───────────────────────────────────────── */
+    .onboarding-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.78);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      animation: fadeIn 0.2s ease;
+    }
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    .onboarding-card {
+      width: 90%;
+      max-width: 480px;
+      background: #121212;
+      border: 1px solid #2a0000;
+      border-radius: 16px;
+      padding: 36px 32px 28px;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(139, 0, 0, 0.25);
+    }
+
+    body.light .onboarding-card { background: #fff; border-color: #e6b8b8; }
+
+    .onboarding-emoji { font-size: 56px; margin-bottom: 18px; }
+
+    .onboarding-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 12px;
+    }
+    body.light .onboarding-title { color: #111; }
+
+    .onboarding-text {
+      font-size: 15px;
+      line-height: 1.7;
+      color: #aaa;
+      margin-bottom: 28px;
+      min-height: 96px;
+    }
+    body.light .onboarding-text { color: #555; }
+
+    .onboarding-dots {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin-bottom: 24px;
+    }
+
+    .onboarding-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #2a2a2a;
+      transition: 0.2s;
+    }
+    .onboarding-dot.active { background: #c0392b; width: 24px; border-radius: 5px; }
+
+    .onboarding-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .onboarding-skip {
+      background: none;
+      border: none;
+      color: #666;
+      font-size: 13px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .onboarding-skip:hover { color: #999; }
+
+    .help-btn {
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      font-size: 11px;
+      text-decoration: underline;
+      opacity: 0.7;
+      font-family: inherit;
+    }
+    .help-btn:hover { opacity: 1; }
+
     /* ─── Tema claro (preto vira branco; vermelho permanece) ─────────────── */
     body.light { background: #f4f4f5; color: #1a1a1a; }
     body.light ::-webkit-scrollbar-track { background: #e0e0e0; }
@@ -1876,12 +1968,80 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
       );
     }
 
+    // ─── Onboarding / Tela de boas-vindas ────────────────────────────────────
+    function Onboarding({ onClose }) {
+      const steps = [
+        {
+          emoji: '🎓',
+          title: 'Bem-vindo ao Dybass Estudioso!',
+          text: 'Seu assistente de estudos. A partir de qualquer conteúdo, ele cria resumos, flashcards e quizzes para você aprender mais rápido. Vamos dar uma volta rápida?',
+        },
+        {
+          emoji: '📝',
+          title: '1. Insira seu conteúdo',
+          text: 'Na seção Conteúdo, cole seu material ou importe um arquivo PDF/TXT. Use a busca para encontrar trechos. Tudo é salvo automaticamente.',
+        },
+        {
+          emoji: '✨',
+          title: '2. Gere material de estudo',
+          text: 'Crie Resumos (completo ou simples), Flashcards e Quizzes com um clique. O quiz pode ser renovado quantas vezes quiser para manter a variedade.',
+        },
+        {
+          emoji: '🔌',
+          title: '3. Online ou Offline',
+          text: 'No Modo Online usamos a IA Claude (precisa de chave de API). No Modo Offline tudo é gerado localmente, sem internet. Alterne na barra lateral.',
+        },
+        {
+          emoji: '🔁',
+          title: '4. Revise e acompanhe',
+          text: 'Use o Modo Revisão dos flashcards para repetir os difíceis, e veja seu progresso na seção Estatísticas. Atalhos de teclado deixam tudo mais rápido!',
+        },
+      ];
+      const [step, setStep] = useState(0);
+      const last = step === steps.length - 1;
+
+      const finish = () => {
+        localStorage.setItem('dybass_onboarded', 'true');
+        onClose();
+      };
+
+      const s = steps[step];
+      return (
+        <div className="onboarding-overlay">
+          <div className="onboarding-card">
+            <div className="onboarding-emoji">{s.emoji}</div>
+            <div className="onboarding-title">{s.title}</div>
+            <div className="onboarding-text">{s.text}</div>
+            <div className="onboarding-dots">
+              {steps.map((_, i) => (
+                <div key={i} className={`onboarding-dot ${i === step ? 'active' : ''}`} />
+              ))}
+            </div>
+            <div className="onboarding-nav">
+              <button className="onboarding-skip" onClick={finish}>Pular</button>
+              <div style={{display:'flex', gap:10}}>
+                {step > 0 && (
+                  <button className="btn btn-secondary" onClick={() => setStep(step - 1)}>
+                    {icons.left} Voltar
+                  </button>
+                )}
+                <button className="btn btn-primary" onClick={() => last ? finish() : setStep(step + 1)}>
+                  {last ? `${icons.sparkle} Começar` : `Próximo ${icons.right}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     // ─── App Root ─────────────────────────────────────────────────────────────
     function App() {
       const [section, setSection] = useState('content');
       const [content, setContent] = useState(() => localStorage.getItem('dybass_content') || '');
       const [offline, setOffline] = useState(() => localStorage.getItem('dybass_offline') === 'true');
       const [theme, setTheme] = useState(() => localStorage.getItem('dybass_theme') || 'dark');
+      const [showOnboarding, setShowOnboarding] = useState(() => localStorage.getItem('dybass_onboarded') !== 'true');
 
       // Aplica o tema ao <body>.
       useEffect(() => {
@@ -1925,6 +2085,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
 
       return (
         <div id="root" style={{display:'flex', height:'100vh', width:'100%'}}>
+          {showOnboarding && <Onboarding onClose={() => setShowOnboarding(false)} />}
           {/* Sidebar */}
           <div className="sidebar">
             <div className="sidebar-logo">
@@ -1969,7 +2130,10 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
               </div>
             </div>
             <div className="sidebar-footer">
-              {offline ? 'Processamento local' : 'Powered by Claude AI'}
+              <div>{offline ? 'Processamento local' : 'Powered by Claude AI'}</div>
+              <button className="help-btn" style={{marginTop:6}} onClick={() => setShowOnboarding(true)}>
+                Ver tutorial
+              </button>
             </div>
           </div>
 
