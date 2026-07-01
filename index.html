@@ -277,6 +277,59 @@
       margin: 16px 0 8px;
     }
 
+    /* Resumo organizado por capítulos */
+    .sum-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+      margin: 0 0 8px;
+    }
+    .sum-chapter {
+      font-size: 15px;
+      font-weight: 700;
+      color: #c0392b;
+      margin: 22px 0 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #2a0000;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .sum-chapter:first-of-type { margin-top: 8px; }
+    .sum-para { color: #ddd; line-height: 1.8; margin: 0 0 6px; }
+    .sum-bullet { color: #ddd; line-height: 1.7; margin: 4px 0; padding-left: 4px; }
+    .sum-terms {
+      color: #9a8; font-size: 13px; margin: 8px 0 4px;
+      background: #0d140d; border-left: 3px solid #2d7a2d;
+      padding: 8px 12px; border-radius: 4px;
+    }
+    body.light .sum-title { color: #111; }
+    body.light .sum-chapter { color: #a01818; border-bottom-color: #f0cccc; }
+    body.light .sum-para, body.light .sum-bullet { color: #333; }
+    body.light .sum-terms { color: #2d5a2d; background: #eef7ee; }
+
+    /* Seletor de capítulo (chips) */
+    .chapter-bar {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      margin-bottom: 20px; align-items: center;
+    }
+    .chapter-bar-label { font-size: 12px; color: #666; margin-right: 4px; }
+    .chip {
+      padding: 6px 14px; border-radius: 20px; font-size: 13px;
+      background: #141414; border: 1px solid #222; color: #999;
+      cursor: pointer; transition: all 0.15s; font-family: inherit;
+    }
+    .chip:hover { border-color: #3a0000; color: #ccc; }
+    .chip.active { background: #1a0000; border-color: #8b0000; color: #fff; }
+    body.light .chip { background: #ececed; border-color: #dcdcdc; color: #666; }
+    body.light .chip.active { background: #ffe3e3; border-color: #c0392b; color: #a01818; }
+    .chapter-tag {
+      display: inline-block; font-size: 11px; font-weight: 600;
+      color: #c0392b; background: #1a0000; border: 1px solid #3a0000;
+      padding: 2px 10px; border-radius: 12px; margin-bottom: 12px;
+    }
+    body.light .chapter-tag { background: #ffe3e3; border-color: #f0cccc; color: #a01818; }
+
     /* Flashcards section */
     .flashcard-container {
       display: flex;
@@ -1082,6 +1135,56 @@
         cards.map(c => esc(c.front) + ',' + esc(c.back)).join('\n');
     }
 
+    // ─── Renderização do resumo organizado ───────────────────────────────────
+    function renderSummary(text) {
+      const lines = String(text).split('\n');
+      const out = [];
+      lines.forEach((raw, i) => {
+        const line = raw.trimEnd();
+        if (!line.trim()) return;
+        if (line.startsWith('# ')) {
+          out.push(<div className="sum-title" key={i}>{line.slice(2)}</div>);
+        } else if (line.startsWith('## ')) {
+          out.push(<div className="sum-chapter" key={i}>{icons.summary} {line.slice(3)}</div>);
+        } else if (line.startsWith('★')) {
+          out.push(<div className="sum-terms" key={i}>{line}</div>);
+        } else if (line.startsWith('•')) {
+          out.push(<div className="sum-bullet" key={i}>{line}</div>);
+        } else {
+          out.push(<div className="sum-para" key={i}>{line}</div>);
+        }
+      });
+      return out;
+    }
+
+    // ─── Seletor de capítulos (chips) ────────────────────────────────────────
+    function ChapterChips({ chapters, value, onChange }) {
+      if (!chapters || chapters.length <= 1) return null;
+      return (
+        <div className="chapter-bar">
+          <span className="chapter-bar-label">Capítulo:</span>
+          <button className={`chip ${value === null ? 'active' : ''}`} onClick={() => onChange(null)}>
+            Todos
+          </button>
+          {chapters.map((c, i) => (
+            <button key={i} className={`chip ${value === c ? 'active' : ''}`} onClick={() => onChange(c)}>
+              {c}
+            </button>
+          ))}
+        </div>
+      );
+    }
+
+    // Detecta capítulos do conteúdo (mesmo motor, funciona online e offline).
+    function detectChaptersOf(content) {
+      try {
+        if (window.offlineAI && window.offlineAI.detectChapters) {
+          return window.offlineAI.detectChapters(content).map(c => c.title);
+        }
+      } catch { /* ignora */ }
+      return [];
+    }
+
     // ─── Estatísticas de estudo ──────────────────────────────────────────────
     function loadStats() {
       try {
@@ -1327,7 +1430,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
         <div>
           <div className="page-header">
             <h2>Resumo</h2>
-            <p>Gere um resumo detalhado ou simplificado do seu conteúdo</p>
+            <p>Resumo detalhado ou simplificado, organizado por capítulos/tópicos</p>
           </div>
           <div className="page-content">
             <div className="summary-actions">
@@ -1369,7 +1472,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
             )}
 
             {!loading && summary && (
-              <div className="summary-result">{summary}</div>
+              <div className="summary-result">{renderSummary(summary)}</div>
             )}
 
             {!loading && !summary && !error && (
@@ -1401,9 +1504,28 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
       const [reviewMode, setReviewMode] = useState(false);
       const [queue, setQueue] = useState([]);
       const [reviewStats, setReviewStats] = useState({ good: 0, again: 0 });
+      const [chapterFilter, setChapterFilter] = useState(null);
+
+      const chapters = React.useMemo(() => {
+        const list = [];
+        cards.forEach(c => { if (c.chapter && !list.includes(c.chapter)) list.push(c.chapter); });
+        return list;
+      }, [cards]);
+
+      const visibleCards = React.useMemo(() =>
+        chapterFilter ? cards.filter(c => c.chapter === chapterFilter) : cards,
+        [cards, chapterFilter]);
+
+      // Ao trocar de capítulo, reinicia a navegação e sai da revisão.
+      useEffect(() => {
+        setCurrent(0);
+        setFlipped(false);
+        setReviewMode(false);
+        setQueue([]);
+      }, [chapterFilter]);
 
       const startReview = () => {
-        setQueue(cards.map((_, i) => i));
+        setQueue(visibleCards.map((_, i) => i));
         setReviewStats({ good: 0, again: 0 });
         setReviewMode(true);
         setFlipped(false);
@@ -1436,6 +1558,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
           const result = await runAI(offline, 'generateFlashcards', content);
           if (result.success) {
             setCards(result.data);
+            setChapterFilter(null);
             setCurrent(0);
             setFlipped(false);
             setVisited(new Set());
@@ -1459,11 +1582,11 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
       };
 
       const prev = () => { if (current > 0) goTo(current - 1); };
-      const next = () => { if (current < cards.length - 1) goTo(current + 1); };
+      const next = () => { if (current < visibleCards.length - 1) goTo(current + 1); };
 
       // Atalhos de teclado: ←/→ navegar, Espaço/Enter virar, 1=Errei 2=Acertei.
       useEffect(() => {
-        if (loading || cards.length === 0) return;
+        if (loading || visibleCards.length === 0) return;
         const onKey = (e) => {
           if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
           if (e.code === 'Space' || e.code === 'Enter') {
@@ -1479,7 +1602,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-      }, [loading, cards.length, reviewMode, queue, current]);
+      }, [loading, visibleCards.length, reviewMode, queue, current]);
 
       const doExport = async (format) => {
         if (!cards.length) return;
@@ -1508,7 +1631,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
       };
 
       const reviewIdx = reviewMode && queue.length > 0 ? queue[0] : null;
-      const card = reviewMode ? cards[reviewIdx] : cards[current];
+      const card = reviewMode ? visibleCards[reviewIdx] : visibleCards[current];
 
       return (
         <div>
@@ -1550,6 +1673,10 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
               )}
             </div>
 
+            {!loading && cards.length > 0 && !reviewMode && (
+              <ChapterChips chapters={chapters} value={chapterFilter} onChange={setChapterFilter} />
+            )}
+
             {error && (
               <div className="error-banner">
                 {icons.cross} {error}
@@ -1560,7 +1687,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
               <div className="empty-state">
                 <span className="loading-spinner" style={{width:36, height:36, borderWidth:3, marginBottom:16}} />
                 <div className="empty-title">Gerando flashcards...</div>
-                <div className="empty-desc">Criando 10 cartões de estudo com IA</div>
+                <div className="empty-desc">Criando cartões organizados por capítulo</div>
               </div>
             )}
 
@@ -1569,7 +1696,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
                 <div className="results-emoji">{icons.trophy}</div>
                 <div className="results-title">Revisão concluída!</div>
                 <div className="results-detail" style={{marginTop:12}}>
-                  Você revisou todos os {cards.length} cartões.
+                  Você revisou todos os {visibleCards.length} cartões.
                   {reviewStats.again > 0 && ` Repetiu ${reviewStats.again}x os difíceis.`}
                 </div>
                 <div style={{display:'flex', gap:12, justifyContent:'center', marginTop:24}}>
@@ -1588,8 +1715,12 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
                 <div className="flashcard-progress">
                   {reviewMode
                     ? `Revisão · faltam ${queue.length} · ✓ ${reviewStats.good} · ↺ ${reviewStats.again}`
-                    : `${current + 1} / ${cards.length}`}
+                    : `${current + 1} / ${visibleCards.length}`}
                 </div>
+
+                {card && card.chapter && (
+                  <div className="chapter-tag">{card.chapter}</div>
+                )}
 
                 <div
                   className="flashcard-scene"
@@ -1623,7 +1754,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
                       {icons.left} Anterior
                     </button>
                     <div className="flashcard-dots">
-                      {cards.map((_, i) => (
+                      {visibleCards.map((_, i) => (
                         <div
                           key={i}
                           className={`dot ${i === current ? 'active' : visited.has(i) ? 'visited' : ''}`}
@@ -1633,7 +1764,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
                         />
                       ))}
                     </div>
-                    <button className="btn btn-secondary" onClick={next} disabled={current === cards.length - 1}>
+                    <button className="btn btn-secondary" onClick={next} disabled={current === visibleCards.length - 1}>
                       Próximo {icons.right}
                     </button>
                   </div>
@@ -1667,6 +1798,17 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
       const [finished, setFinished] = useState(false);
       const [loading, setLoading] = useState(false);
       const [error, setError] = useState('');
+      const [chapterFilter, setChapterFilter] = useState(null);
+
+      const chapters = React.useMemo(() => {
+        const list = [];
+        questions.forEach(q => { if (q.chapter && !list.includes(q.chapter)) list.push(q.chapter); });
+        return list;
+      }, [questions]);
+
+      const visibleQuestions = React.useMemo(() =>
+        chapterFilter ? questions.filter(q => q.chapter === chapterFilter) : questions,
+        [questions, chapterFilter]);
 
       const generate = async () => {
         if (!content.trim()) {
@@ -1679,6 +1821,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
           const result = await runAI(offline, 'generateQuiz', content);
           if (result.success) {
             setQuestions(result.data);
+            setChapterFilter(null);
             localStorage.setItem('dybass_quiz', JSON.stringify(result.data));
             resetQuiz();
           } else {
@@ -1698,35 +1841,38 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
         setFinished(false);
       };
 
+      // Reinicia o quiz ao trocar de capítulo.
+      useEffect(() => { resetQuiz(); }, [chapterFilter]);
+
       const handleSelect = (idx) => {
         if (answered) return;
         setSelected(idx);
         setAnswered(true);
-        if (idx === questions[current].correct) {
+        if (idx === visibleQuestions[current].correct) {
           setScore(s => s + 1);
         }
       };
 
       const handleNext = () => {
-        if (current < questions.length - 1) {
+        if (current < visibleQuestions.length - 1) {
           setCurrent(c => c + 1);
           setSelected(null);
           setAnswered(false);
         } else {
-          recordQuiz(score, questions.length);
+          recordQuiz(score, visibleQuestions.length);
           setFinished(true);
         }
       };
 
-      const q = questions[current];
+      const q = visibleQuestions[current];
       const optLetters = ['A', 'B', 'C', 'D'];
 
       // Atalhos: 1-4 (ou A-D) escolhem a opção, Enter avança.
       useEffect(() => {
-        if (loading || finished || questions.length === 0) return;
+        if (loading || finished || visibleQuestions.length === 0) return;
         const onKey = (e) => {
           if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
-          const cur = questions[current];
+          const cur = visibleQuestions[current];
           if (!cur) return;
           if (!answered) {
             const map = { '1':0, '2':1, '3':2, '4':3, 'a':0, 'b':1, 'c':2, 'd':3 };
@@ -1739,9 +1885,9 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-      }, [loading, finished, answered, current, questions]);
+      }, [loading, finished, answered, current, visibleQuestions]);
 
-      const getPercentage = () => Math.round((score / questions.length) * 100);
+      const getPercentage = () => Math.round((score / visibleQuestions.length) * 100);
       const getResultEmoji = () => {
         const p = getPercentage();
         if (p >= 90) return icons.trophy;
@@ -1766,7 +1912,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
             {!loading && !finished && questions.length > 0 && (
               <div className="quiz-header">
                 <div className="quiz-score">
-                  Acertos: <strong>{score}</strong>/{questions.length}
+                  Acertos: <strong>{score}</strong>/{visibleQuestions.length}
                 </div>
                 <button className="btn btn-secondary" onClick={generate} disabled={loading}>
                   {icons.refresh} Novo Quiz
@@ -1774,11 +1920,15 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
               </div>
             )}
 
+            {!loading && !finished && questions.length > 0 && (
+              <ChapterChips chapters={chapters} value={chapterFilter} onChange={setChapterFilter} />
+            )}
+
             {loading && (
               <div className="empty-state">
                 <span className="loading-spinner" style={{width:36, height:36, borderWidth:3, marginBottom:16}} />
                 <div className="empty-title">Gerando quiz...</div>
-                <div className="empty-desc">Criando 8 questões de múltipla escolha</div>
+                <div className="empty-desc">Criando questões organizadas por capítulo</div>
               </div>
             )}
 
@@ -1795,17 +1945,18 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
               </div>
             )}
 
-            {!loading && questions.length > 0 && !finished && (
+            {!loading && questions.length > 0 && !finished && q && (
               <div>
                 <div className="quiz-progress-bar">
                   <div
                     className="quiz-progress-fill"
-                    style={{width: `${((current) / questions.length) * 100}%`}}
+                    style={{width: `${((current) / visibleQuestions.length) * 100}%`}}
                   />
                 </div>
 
                 <div className="quiz-question-card">
-                  <div className="quiz-question-num">Questão {current + 1} de {questions.length}</div>
+                  {q.chapter && <div className="chapter-tag">{q.chapter}</div>}
+                  <div className="quiz-question-num">Questão {current + 1} de {visibleQuestions.length}</div>
                   <div className="quiz-question-text">{q.question}</div>
                 </div>
 
@@ -1851,7 +2002,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
                     onClick={handleNext}
                     disabled={!answered}
                   >
-                    {current < questions.length - 1 ? 'Próxima' : 'Ver Resultado'} {icons.right}
+                    {current < visibleQuestions.length - 1 ? 'Próxima' : 'Ver Resultado'} {icons.right}
                   </button>
                 </div>
               </div>
@@ -1865,7 +2016,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
                 </div>
                 <div className="results-score">{getPercentage()}%</div>
                 <div className="results-detail">
-                  Você acertou {score} de {questions.length} questões
+                  Você acertou {score} de {visibleQuestions.length} questões
                 </div>
                 <div style={{display:'flex', gap:12, justifyContent:'center'}}>
                   <button className="btn btn-secondary" onClick={resetQuiz}>
