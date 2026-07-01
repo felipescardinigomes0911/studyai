@@ -767,6 +767,22 @@
       line-height: 1.4;
     }
 
+    .apikey-box {
+      display: flex; flex-direction: column; gap: 6px;
+      margin-top: 8px; padding-top: 10px; border-top: 1px dashed #222;
+    }
+    .apikey-status { font-size: 10px; color: #888; }
+    .apikey-status.ok { color: #5cb85c; }
+    .apikey-status.warn { color: #d9a441; }
+    .apikey-input {
+      background: #141414; border: 1px solid #222; border-radius: 6px;
+      color: #e8e8e8; font-size: 11px; padding: 6px 8px; outline: none;
+      font-family: inherit;
+    }
+    .apikey-input:focus { border-color: #8b0000; }
+    body.light .apikey-input { background: #fff; border-color: #d0d0d0; color: #1a1a1a; }
+    body.light .apikey-box { border-top-color: #dcdcdc; }
+
     .export-bar {
       display: flex;
       gap: 8px;
@@ -2185,6 +2201,50 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
       );
     }
 
+    // ─── Configuração da chave de API (Modo Online) ──────────────────────────
+    function ApiKeyConfig() {
+      const [key, setKey] = useState('');
+      const [saved, setSaved] = useState(false);
+      const [hasKey, setHasKey] = useState(false);
+
+      useEffect(() => {
+        if (window.electronAPI && window.electronAPI.hasApiKey) {
+          window.electronAPI.hasApiKey().then(setHasKey);
+        }
+      }, []);
+
+      if (!window.electronAPI || !window.electronAPI.setApiKey) return null;
+
+      const save = async () => {
+        const res = await window.electronAPI.setApiKey(key.trim());
+        if (res && res.success) {
+          setHasKey(!!key.trim());
+          setKey('');
+          setSaved(true);
+          setTimeout(() => setSaved(false), 2500);
+        }
+      };
+
+      return (
+        <div className="apikey-box">
+          <div className={`apikey-status ${hasKey ? 'ok' : 'warn'}`}>
+            {hasKey ? '✓ Chave de API configurada' : '⚠ Cole sua chave para usar o Modo Online'}
+          </div>
+          <input
+            className="apikey-input"
+            type="password"
+            placeholder="sk-ant-..."
+            value={key}
+            onChange={e => setKey(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && key.trim()) save(); }}
+          />
+          <button className="btn btn-primary btn-sm" onClick={save} disabled={!key.trim()} style={{width:'100%'}}>
+            {saved ? '✓ Salva!' : 'Salvar chave'}
+          </button>
+        </div>
+      );
+    }
+
     // ─── App Root ─────────────────────────────────────────────────────────────
     function App() {
       const [section, setSection] = useState('content');
@@ -2278,6 +2338,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
                   ? 'Gera tudo localmente, sem internet ou chave de API.'
                   : 'Usa a IA Claude (requer chave de API e internet).'}
               </div>
+              {!offline && <ApiKeyConfig />}
             </div>
             <div className="sidebar-footer">
               <div>{offline ? 'Processamento local' : 'Powered by Claude AI'}</div>

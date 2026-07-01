@@ -6,10 +6,16 @@ a partir do conteúdo que você inserir. Visual preto e vermelho escuro.
 ## Funcionalidades
 
 - **Conteúdo** — cole ou digite seu material de estudo (salvo automaticamente).
-- **Resumo** — modo *Completo* (detalhado) e *Simples* (tópicos).
-- **Flashcards** — cartões pergunta/resposta com animação de virar e navegação.
-- **Quiz** — questões de múltipla escolha com placar; "Novo Quiz" renova as questões.
-- **Modo Online ☁️** — usa a IA Claude (requer chave de API e internet).
+- **Divisão por capítulos** — detecta capítulos/tópicos do conteúdo (títulos,
+  "Capítulo X", numeração ou linhas em MAIÚSCULAS) e organiza resumo,
+  flashcards e quiz por seção.
+- **Resumo** — modo *Completo* (detalhado) e *Simples* (tópicos), estruturado
+  por capítulo com "conceitos-chave" de cada seção.
+- **Flashcards** — cartões por capítulo, com filtro, animação de virar e navegação.
+- **Quiz** — questões por capítulo, com filtro e placar; "Novo Quiz" renova as questões.
+- **Modo Online ☁️** — usa a IA Claude. Cole sua chave da Anthropic direto na
+  barra lateral (fica salva no seu computador) — não precisa mais de variável
+  de ambiente.
 - **Modo Offline 🔌** — gera tudo localmente, **sem internet e sem chave de API**,
   usando processamento de texto (frequência de termos, extração de sentenças e
   cloze deletion). Alterne no botão da barra lateral.

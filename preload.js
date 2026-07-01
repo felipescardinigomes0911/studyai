@@ -6,4 +6,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   generateQuiz: (content) => ipcRenderer.invoke('generate-quiz', content),
   exportFile: (opts) => ipcRenderer.invoke('export-file', opts),
   hasApiKey: () => ipcRenderer.invoke('has-api-key'),
+  setApiKey: (key) => ipcRenderer.invoke('set-api-key', key),
 });
