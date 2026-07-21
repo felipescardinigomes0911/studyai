@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
-"""Gera o icone do Dybass Estudioso (256x256 PNG) sem dependencias externas.
+"""Gera o icone do Dybass Estudioso (1024x1024 PNG) sem dependencias externas.
 
 Desenha um livro vermelho escuro sobre fundo preto com a letra "D".
-Usa apenas a biblioteca padrao (zlib + struct) para escrever o PNG, garantindo
-o tamanho minimo de 256x256 exigido pelo electron-builder no Windows.
+Usa apenas a biblioteca padrao (zlib + struct) para escrever o PNG. A arte e
+desenhada numa grade base de 256 e ampliada por SCALE na escrita, gerando
+1024x1024 — acima do minimo de 512x512 exigido pelo macOS (e valido tambem
+para Windows e Linux).
 """
 import struct
 import zlib
 
-SIZE = 256
+SIZE = 256          # grade base de desenho
+SCALE = 4           # fator de ampliacao -> saida 1024x1024
+OUT = SIZE * SCALE
 BG = (10, 10, 10)          # #0a0a0a fundo
 DARK_RED = (139, 0, 0)     # #8b0000 capa do livro
 RED = (192, 57, 43)        # #c0392b detalhe
@@ -54,11 +58,15 @@ rect(148, 160, 164, 172, WHITE)      # canto inf.
 
 
 def write_png(path):
+    # Amplia a grade base por SCALE (nearest-neighbor) ao emitir os pixels.
     raw = bytearray()
     for y in range(SIZE):
-        raw.append(0)  # filtro None por linha
+        row = bytearray()
         for x in range(SIZE):
-            raw.extend(px[y][x])
+            row.extend(bytes(px[y][x]) * SCALE)  # repete o pixel na horizontal
+        for _ in range(SCALE):                   # repete a linha na vertical
+            raw.append(0)  # filtro None por linha
+            raw.extend(row)
     compressed = zlib.compress(bytes(raw), 9)
 
     def chunk(tag, data):
@@ -68,11 +76,11 @@ def write_png(path):
 
     with open(path, "wb") as f:
         f.write(b"\x89PNG\r\n\x1a\n")
-        f.write(chunk(b"IHDR", struct.pack(">IIBBBBB", SIZE, SIZE, 8, 2, 0, 0, 0)))
+        f.write(chunk(b"IHDR", struct.pack(">IIBBBBB", OUT, OUT, 8, 2, 0, 0, 0)))
         f.write(chunk(b"IDAT", compressed))
         f.write(chunk(b"IEND", b""))
 
 
 if __name__ == "__main__":
     write_png("icon.png")
-    print("icon.png (256x256) gerado.")
+    print(f"icon.png ({OUT}x{OUT}) gerado.")
