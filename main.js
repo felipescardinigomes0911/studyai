@@ -1,12 +1,13 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
 let mainWindow;
 
 // ─── Chave de API ───────────────────────────────────────────────────────────
-// A chave pode vir da variável de ambiente OU ser salva pelo próprio app,
-// num arquivo dentro da pasta de dados do usuário (userData).
+// A chave pode vir da variável de ambiente OU ser salva pelo próprio app.
+// Quando o SO oferece criptografia (safeStorage), a chave é gravada cifrada
+// com o cofre de credenciais do sistema; senão, cai no formato antigo em texto.
 function keyFilePath() {
   return path.join(app.getPath('userData'), 'api-key.json');
 }
@@ -16,6 +17,11 @@ function getApiKey() {
   try {
     const raw = fs.readFileSync(keyFilePath(), 'utf-8');
     const data = JSON.parse(raw);
+    // Formato novo (cifrado): { enc: "<base64>" }.
+    if (data.enc && safeStorage.isEncryptionAvailable()) {
+      return safeStorage.decryptString(Buffer.from(data.enc, 'base64'));
+    }
+    // Formato antigo (texto puro) — mantido para compatibilidade.
     return data.apiKey || '';
   } catch {
     return '';
@@ -24,7 +30,14 @@ function getApiKey() {
 
 function setApiKey(key) {
   try {
-    fs.writeFileSync(keyFilePath(), JSON.stringify({ apiKey: String(key || '') }), 'utf-8');
+    const value = String(key || '');
+    let payload;
+    if (value && safeStorage.isEncryptionAvailable()) {
+      payload = { enc: safeStorage.encryptString(value).toString('base64') };
+    } else {
+      payload = { apiKey: value };
+    }
+    fs.writeFileSync(keyFilePath(), JSON.stringify(payload), 'utf-8');
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
@@ -89,58 +102,150 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
-// IPC Handlers
+// ─── IA (Modo Online) ─────────────────────────────────────────────────────────
+const MODEL = 'claude-haiku-4-5-20251001';
+// Teto de conteúdo enviado à API (~ segurança de custo/contexto). ~48k chars ≈ 12k tokens.
+const MAX_CONTENT_CHARS = 48000;
+
+function guardContent(content) {
+  const text = String(content || '');
+  if (text.trim().length < 20) {
+    return { error: 'Conteúdo muito curto. Cole ou importe mais texto para estudar.' };
+  }
+  if (text.length > MAX_CONTENT_CHARS) {
+    return {
+      error: `Conteúdo muito longo (${text.length.toLocaleString('pt-BR')} caracteres). ` +
+        `Reduza para até ${MAX_CONTENT_CHARS.toLocaleString('pt-BR')} caracteres ou divida em partes.`,
+    };
+  }
+  return { text };
+}
+
+function client() {
+  const Anthropic = require('@anthropic-ai/sdk');
+  return new Anthropic({ apiKey: getApiKey() });
+}
+
+// O conteúdo vai no system como bloco CACHEÁVEL: como resumo, flashcards e quiz
+// usam o mesmo conteúdo, as chamadas seguintes reaproveitam o cache (mais barato
+// e mais rápido). A tarefa específica vai na mensagem do usuário.
+function systemWithContent(text) {
+  return [
+    {
+      type: 'text',
+      text: 'Você é um assistente educacional que responde sempre em português brasileiro. ' +
+        'Use exclusivamente o conteúdo de referência abaixo.\n\n=== CONTEÚDO DE REFERÊNCIA ===\n' + text,
+      cache_control: { type: 'ephemeral' },
+    },
+  ];
+}
 
 ipcMain.handle('generate-summary', async (event, content, type) => {
   try {
-    const Anthropic = require('@anthropic-ai/sdk');
-    const client = new Anthropic({ apiKey: getApiKey() });
+    const g = guardContent(content);
+    if (g.error) return { success: false, error: g.error };
 
-    const fmt = `IMPORTANTE - organize o resumo por CAPÍTULOS/TÓPICOS do conteúdo. Comece com uma linha "# Resumo Completo" (ou "# Resumo Simples"). Para cada capítulo/tópico, use uma linha começando com "## " seguida do título do capítulo. Use "• " no início de cada tópico e, ao final de cada capítulo, uma linha começando com "★ Conceitos-chave: " listando os termos importantes daquele capítulo. Não use blocos de código.`;
-    const prompt = type === 'completo'
-      ? `Você é um assistente educacional. Crie um resumo DETALHADO e COMPLETO do seguinte conteúdo em português brasileiro, cobrindo todos os pontos importantes, conceitos-chave e exemplos.\n\n${fmt}\n\nConteúdo:\n${content}`
-      : `Você é um assistente educacional. Crie um resumo SIMPLES e BREVE do seguinte conteúdo em português brasileiro, com bullet points curtos e diretos (apenas o essencial).\n\n${fmt}\n\nConteúdo:\n${content}`;
+    const fmt = `Organize o resumo por CAPÍTULOS/TÓPICOS do conteúdo. Comece com uma linha "# Resumo Completo" (ou "# Resumo Simples"). Para cada capítulo/tópico, use uma linha começando com "## " seguida do título. Use "• " no início de cada tópico e, ao final de cada capítulo, uma linha começando com "★ Conceitos-chave: " listando os termos importantes. Não use blocos de código.`;
+    const task = type === 'completo'
+      ? `Crie um resumo DETALHADO e COMPLETO do conteúdo de referência, cobrindo todos os pontos importantes, conceitos-chave e exemplos.\n\n${fmt}`
+      : `Crie um resumo SIMPLES e BREVE do conteúdo de referência, com bullet points curtos e diretos (apenas o essencial).\n\n${fmt}`;
 
-    const message = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2048,
-      messages: [{ role: 'user', content: prompt }],
+    const message = await client().messages.create({
+      model: MODEL,
+      max_tokens: 8192,
+      system: systemWithContent(g.text),
+      messages: [{ role: 'user', content: task }],
     });
 
-    return { success: true, data: message.content[0].text };
+    const textOut = message.content.filter(b => b.type === 'text').map(b => b.text).join('').trim();
+    if (!textOut) throw new Error('A IA não retornou texto.');
+    return { success: true, data: textOut };
   } catch (error) {
     return { success: false, error: error.message };
   }
 });
 
+// Ferramenta que força a IA a devolver os flashcards como JSON válido
+// (sem depender de regex frágil no texto).
+const FLASHCARDS_TOOL = {
+  name: 'registrar_flashcards',
+  description: 'Registra os flashcards de estudo gerados.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      flashcards: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            front: { type: 'string', description: 'A pergunta/frente do card.' },
+            back: { type: 'string', description: 'A resposta/verso do card.' },
+            chapter: { type: 'string', description: 'Capítulo/tópico do conteúdo.' },
+          },
+          required: ['front', 'back', 'chapter'],
+        },
+      },
+    },
+    required: ['flashcards'],
+  },
+};
+
+const QUIZ_TOOL = {
+  name: 'registrar_quiz',
+  description: 'Registra as questões de múltipla escolha geradas.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      questions: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            question: { type: 'string', description: 'O enunciado da questão.' },
+            options: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Exatamente 4 alternativas.',
+            },
+            correct: { type: 'integer', description: 'Índice (0-3) da alternativa correta.' },
+            chapter: { type: 'string', description: 'Capítulo/tópico do conteúdo.' },
+          },
+          required: ['question', 'options', 'correct', 'chapter'],
+        },
+      },
+    },
+    required: ['questions'],
+  },
+};
+
+// Extrai o input do tool_use forçado na resposta.
+function toolResult(message, toolName) {
+  const block = message.content.find(b => b.type === 'tool_use' && b.name === toolName);
+  if (!block || !block.input) throw new Error('A IA não retornou os dados esperados.');
+  return block.input;
+}
+
 ipcMain.handle('generate-flashcards', async (event, content) => {
   try {
-    const Anthropic = require('@anthropic-ai/sdk');
-    const client = new Anthropic({ apiKey: getApiKey() });
+    const g = guardContent(content);
+    if (g.error) return { success: false, error: g.error };
 
-    const prompt = `Você é um assistente educacional. Com base no conteúdo abaixo, crie de 10 a 14 flashcards de estudo em português brasileiro, distribuídos entre os diferentes capítulos/tópicos do conteúdo.
-
-Retorne APENAS um array JSON válido, sem texto adicional, sem markdown, sem blocos de código. Apenas o array JSON puro.
-
-Formato: [{"front": "pergunta aqui", "back": "resposta aqui", "chapter": "nome do capítulo/tópico"}, ...]
-
-O campo "chapter" deve identificar de qual capítulo/tópico o flashcard trata. Cubra os conceitos mais importantes de cada seção.
-
-Conteúdo:
-${content}`;
-
-    const message = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2048,
-      messages: [{ role: 'user', content: prompt }],
+    const message = await client().messages.create({
+      model: MODEL,
+      max_tokens: 8192,
+      system: systemWithContent(g.text),
+      tools: [FLASHCARDS_TOOL],
+      tool_choice: { type: 'tool', name: 'registrar_flashcards' },
+      messages: [{
+        role: 'user',
+        content: 'Crie de 10 a 14 flashcards de estudo, distribuídos entre os diferentes ' +
+          'capítulos/tópicos do conteúdo, cobrindo os conceitos mais importantes de cada seção.',
+      }],
     });
 
-    const text = message.content[0].text.trim();
-    // Extract JSON array from response
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) throw new Error('Resposta inválida da IA');
-    const flashcards = JSON.parse(jsonMatch[0]);
-    return { success: true, data: flashcards };
+    const cards = toolResult(message, 'registrar_flashcards').flashcards || [];
+    if (!cards.length) throw new Error('Nenhum flashcard foi gerado.');
+    return { success: true, data: cards };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -148,33 +253,29 @@ ${content}`;
 
 ipcMain.handle('generate-quiz', async (event, content) => {
   try {
-    const Anthropic = require('@anthropic-ai/sdk');
-    const client = new Anthropic({ apiKey: getApiKey() });
+    const g = guardContent(content);
+    if (g.error) return { success: false, error: g.error };
 
-    const prompt = `Você é um assistente educacional. Com base no conteúdo abaixo, crie de 8 a 12 questões de múltipla escolha em português brasileiro, distribuídas entre os diferentes capítulos/tópicos do conteúdo.
-
-Retorne APENAS um array JSON válido, sem texto adicional, sem markdown, sem blocos de código. Apenas o array JSON puro.
-
-Formato: [{"question": "pergunta aqui", "options": ["opção A", "opção B", "opção C", "opção D"], "correct": 0, "chapter": "nome do capítulo/tópico"}, ...]
-
-O campo "correct" deve ser o índice (0-3) da opção correta no array "options".
-O campo "chapter" deve identificar de qual capítulo/tópico a questão trata.
-As perguntas devem testar a compreensão dos conceitos principais de cada seção.
-
-Conteúdo:
-${content}`;
-
-    const message = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2048,
-      messages: [{ role: 'user', content: prompt }],
+    const message = await client().messages.create({
+      model: MODEL,
+      max_tokens: 8192,
+      system: systemWithContent(g.text),
+      tools: [QUIZ_TOOL],
+      tool_choice: { type: 'tool', name: 'registrar_quiz' },
+      messages: [{
+        role: 'user',
+        content: 'Crie de 8 a 12 questões de múltipla escolha (4 alternativas cada), ' +
+          'distribuídas entre os diferentes capítulos/tópicos, testando a compreensão ' +
+          'dos conceitos principais de cada seção. O campo "correct" é o índice (0-3) da correta.',
+      }],
     });
 
-    const text = message.content[0].text.trim();
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) throw new Error('Resposta inválida da IA');
-    const quiz = JSON.parse(jsonMatch[0]);
-    return { success: true, data: quiz };
+    const questions = (toolResult(message, 'registrar_quiz').questions || [])
+      // Descarta questões malformadas antes de entregar ao app.
+      .filter(q => Array.isArray(q.options) && q.options.length >= 2 &&
+        Number.isInteger(q.correct) && q.correct >= 0 && q.correct < q.options.length);
+    if (!questions.length) throw new Error('Nenhuma questão válida foi gerada.');
+    return { success: true, data: questions };
   } catch (error) {
     return { success: false, error: error.message };
   }

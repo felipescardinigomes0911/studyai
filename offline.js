@@ -243,7 +243,29 @@
   }
 
   // ─── Quiz ─────────────────────────────────────────────────────────────────
-  function questionsFromChapter(ch, freq, allKeywords, limit) {
+  // Escolhe distratores plausíveis: palavras de FREQUÊNCIA parecida com a
+  // resposta (nem óbvias por serem raras, nem por serem as mais comuns) e que
+  // não caibam na lacuna. Evita alternativas duplicadas ou sem sentido.
+  function pickDistractors(key, sentence, freq, rankedKeywords, n) {
+    const keyFreq = freq[key] || 1;
+    const used = new Set([key.toLowerCase()]);
+    // Palavras que aparecem na própria frase também completariam a lacuna → fora.
+    for (const w of tokenize(sentence)) used.add(w);
+    const candidates = rankedKeywords
+      .filter(w => !used.has(w))
+      .map(w => ({ w, dist: Math.abs((freq[w] || 0) - keyFreq) }))
+      .sort((a, b) => a.dist - b.dist)
+      .slice(0, Math.max(n * 4, 8));
+    const out = [];
+    for (const c of shuffle(candidates)) {
+      if (out.length >= n) break;
+      if (!used.has(c.w)) { out.push(c.w); used.add(c.w); }
+    }
+    while (out.length < n) out.push('—');
+    return out;
+  }
+
+  function questionsFromChapter(ch, freq, rankedKeywords, limit) {
     const sentences = splitSentences(ch.text);
     if (sentences.length === 0) return [];
     const scored = scoreSentences(sentences, freq);
@@ -251,11 +273,10 @@
 
     return picked.map(({ sentence }) => {
       const kws = keywordsOf(sentence, freq);
-      const key = kws[0] || allKeywords[0];
+      const key = kws[0] || rankedKeywords[0];
       const re = new RegExp('\\b' + key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
       const blanked = sentence.replace(re, '________');
-      const distractors = shuffle(allKeywords.filter(w => w !== key)).slice(0, 3);
-      while (distractors.length < 3) distractors.push('—');
+      const distractors = pickDistractors(key, sentence, freq, rankedKeywords, 3);
       const options = shuffle([key, ...distractors]);
       return {
         question: 'Qual palavra completa: "' + blanked + '"?',
@@ -263,18 +284,21 @@
         correct: options.indexOf(key),
         chapter: ch.title,
       };
-    });
+    }).filter(q => q.correct >= 0); // descarta se a resposta colidiu com um distrator
   }
 
   function generateQuiz(content) {
     const chapters = detectChapters(content);
     const freq = wordFrequencies(content);
-    const allKeywords = Object.keys(freq).filter(w => freq[w] >= 1);
+    // Palavras ordenadas por frequência (base para distratores parecidos).
+    const rankedKeywords = Object.keys(freq)
+      .filter(w => freq[w] >= 1)
+      .sort((a, b) => freq[b] - freq[a]);
     const total = 10;
     const per = Math.max(1, Math.ceil(total / chapters.length));
     let questions = [];
     for (const ch of chapters) {
-      questions = questions.concat(questionsFromChapter(ch, freq, allKeywords, per));
+      questions = questions.concat(questionsFromChapter(ch, freq, rankedKeywords, per));
     }
     if (questions.length === 0) {
       return { success: false, error: 'Conteúdo muito curto para gerar um quiz offline.' };
