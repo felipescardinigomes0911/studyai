@@ -1201,6 +1201,57 @@
       return [];
     }
 
+    // Grava no localStorage com proteção: se estourar a cota (~5-10 MB, comum
+    // com PDFs grandes), devolve uma mensagem em vez de derrubar o app.
+    function safeSetItem(key, value) {
+      try {
+        localStorage.setItem(key, value);
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: 'Conteúdo grande demais para salvar no app. ' +
+          'Reduza o texto ou divida em partes.' };
+      }
+    }
+
+    // ─── Repetição espaçada (SM-2 simplificado, persistido) ───────────────────
+    // Cada cartão ganha um agendamento salvo no PC: quando você acerta, ele volta
+    // mais tarde (1d → 3d → 3d×facilidade…); quando erra, volta em minutos. Assim
+    // o app foca nos cartões que você ainda não fixou, mesmo entre sessões.
+    const SRS_DAY = 86400000;
+
+    function srsKey(card) {
+      const s = (card.front || '') + '|' + (card.back || '');
+      let h = 0;
+      for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+      return 'c' + (h >>> 0).toString(36);
+    }
+
+    function loadSRS() {
+      try { return JSON.parse(localStorage.getItem('dybass_srs') || '{}'); } catch { return {}; }
+    }
+
+    function saveSRS(map) { safeSetItem('dybass_srs', JSON.stringify(map)); }
+
+    function isDue(sched) { return !sched || (sched.due || 0) <= Date.now(); }
+
+    function nextSchedule(sched, good) {
+      const now = Date.now();
+      let ease = (sched && sched.ease) || 2.5;
+      let interval = (sched && sched.interval) || 0;
+      let reps = (sched && sched.reps) || 0;
+      if (good) {
+        reps += 1;
+        if (reps === 1) interval = 1;
+        else if (reps === 2) interval = 3;
+        else interval = Math.max(1, Math.round(interval * ease));
+        ease = Math.min(2.8, ease + 0.02);
+        return { ease, interval, reps, due: now + interval * SRS_DAY, updated: now };
+      }
+      // Errou: volta ao aprendizado (revê em ~10 min) e fica um pouco mais difícil.
+      ease = Math.max(1.3, ease - 0.2);
+      return { ease, interval: 0, reps: 0, due: now + 10 * 60 * 1000, updated: now };
+    }
+
     // ─── Estatísticas de estudo ──────────────────────────────────────────────
     function loadStats() {
       try {
@@ -1246,7 +1297,13 @@
           const tc = await page.getTextContent();
           text += tc.items.map(it => it.str).join(' ') + '\n\n';
         }
-        return text.trim();
+        const out = text.trim();
+        // PDF sem texto extraível costuma ser digitalizado (imagem/foto).
+        if (!out) {
+          throw new Error('Este PDF parece ser digitalizado (imagem), sem texto selecionável. ' +
+            'Use um PDF com texto ou cole o conteúdo manualmente.');
+        }
+        return out;
       }
       // TXT, MD e similares
       return await file.text();
@@ -1291,7 +1348,9 @@
       };
 
       const handleSave = () => {
-        localStorage.setItem('dybass_content', content);
+        const r = safeSetItem('dybass_content', content);
+        if (!r.ok) { setImportError(r.error); return; }
+        setImportError('');
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
       };
@@ -1307,9 +1366,9 @@
           // Acrescenta ao conteúdo existente (ou substitui se vazio).
           const merged = content.trim() ? content + '\n\n' + text : text;
           onContentChange(merged);
-          localStorage.setItem('dybass_content', merged);
-          setSaved(true);
-          setTimeout(() => setSaved(false), 2000);
+          const r = safeSetItem('dybass_content', merged);
+          if (!r.ok) { setImportError(r.error); }
+          else { setSaved(true); setTimeout(() => setSaved(false), 2000); }
         } catch (err) {
           setImportError('Erro ao importar: ' + err.message);
         }
@@ -1516,11 +1575,12 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
       const [visited, setVisited] = useState(new Set());
       const [loading, setLoading] = useState(false);
       const [error, setError] = useState('');
-      // Revisão espaçada (sessão): fila de cartões a revisar.
+      // Revisão espaçada persistida: fila de cartões a revisar + agendamento salvo.
       const [reviewMode, setReviewMode] = useState(false);
       const [queue, setQueue] = useState([]);
       const [reviewStats, setReviewStats] = useState({ good: 0, again: 0 });
       const [chapterFilter, setChapterFilter] = useState(null);
+      const [srs, setSrs] = useState(loadSRS);
 
       const chapters = React.useMemo(() => {
         const list = [];
@@ -1532,6 +1592,11 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
         chapterFilter ? cards.filter(c => c.chapter === chapterFilter) : cards,
         [cards, chapterFilter]);
 
+      // Índices dos cartões "vencidos" (novos ou cuja hora de revisar já chegou).
+      const dueIndexes = React.useMemo(() =>
+        visibleCards.map((c, i) => (isDue(srs[srsKey(c)]) ? i : -1)).filter(i => i >= 0),
+        [visibleCards, srs]);
+
       // Ao trocar de capítulo, reinicia a navegação e sai da revisão.
       useEffect(() => {
         setCurrent(0);
@@ -1541,7 +1606,9 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
       }, [chapterFilter]);
 
       const startReview = () => {
-        setQueue(visibleCards.map((_, i) => i));
+        // Prioriza os vencidos; se nenhum estiver vencido, revê todos (estudo livre).
+        const seed = dueIndexes.length ? dueIndexes : visibleCards.map((_, i) => i);
+        setQueue(seed);
         setReviewStats({ good: 0, again: 0 });
         setReviewMode(true);
         setFlipped(false);
@@ -1554,7 +1621,18 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
       };
 
       // Acertei: remove o cartão da fila. Errei: manda para o fim (revisa depois).
+      // Nos dois casos, grava o novo agendamento no PC (persiste entre sessões).
       const rateCard = (good) => {
+        const idx = queue[0];
+        const c = visibleCards[idx];
+        if (c) {
+          const key = srsKey(c);
+          setSrs(prev => {
+            const updated = { ...prev, [key]: nextSchedule(prev[key], good) };
+            saveSRS(updated);
+            return updated;
+          });
+        }
         setReviewStats(s => good ? { ...s, good: s.good + 1 } : { ...s, again: s.again + 1 });
         setQueue(q => {
           const [head, ...rest] = q;
@@ -1662,8 +1740,8 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
                 {cards.length ? 'Gerar Novos' : 'Gerar Flashcards'}
               </button>
               {cards.length > 0 && !loading && !reviewMode && (
-                <button className="btn btn-outline" onClick={startReview} title="Estuda em ciclo até acertar todos">
-                  {icons.brain} Modo Revisão
+                <button className="btn btn-outline" onClick={startReview} title="Repetição espaçada: prioriza os cartões que você ainda não fixou">
+                  {icons.brain} Modo Revisão{dueIndexes.length ? ` (${dueIndexes.length} para hoje)` : ''}
                 </button>
               )}
               {cards.length > 0 && !loading && reviewMode && (
