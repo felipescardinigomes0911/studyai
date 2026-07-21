@@ -90,8 +90,33 @@ ipcMain.handle('set-api-key', async (event, key) => {
   return setApiKey(key);
 });
 
+// Verifica atualizações no GitHub Releases e avisa quando houver uma nova versão.
+// Só roda no app empacotado; qualquer falha (sem internet, feed ausente) é
+// silenciada para nunca atrapalhar o uso.
+function checkForUpdates() {
+  if (!app.isPackaged) return;
+  try {
+    const { autoUpdater } = require('electron-updater');
+    autoUpdater.autoDownload = true;
+    autoUpdater.on('update-downloaded', () => {
+      dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: 'Atualização disponível',
+        message: 'Uma nova versão do Dybass Estudioso foi baixada. Reinicie para instalar.',
+        buttons: ['Reiniciar agora', 'Depois'],
+        defaultId: 0,
+      }).then(({ response }) => {
+        if (response === 0) autoUpdater.quitAndInstall();
+      });
+    });
+    autoUpdater.on('error', () => { /* silencioso: sem internet ou sem release */ });
+    autoUpdater.checkForUpdates();
+  } catch { /* electron-updater ausente: ignora */ }
+}
+
 app.whenReady().then(() => {
   createWindow();
+  checkForUpdates();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

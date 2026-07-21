@@ -8,7 +8,7 @@ on:
   workflow_dispatch:   # permite rodar manualmente pelo botão "Run workflow"
     inputs:
       release_tag:
-        description: 'Tag da versão para publicar um Release (ex.: v1.0.0). Deixe vazio para apenas compilar.'
+        description: 'Tag da versão para publicar um Release (ex.: v1.1.0). Deixe vazio para apenas compilar.'
         required: false
         default: ''
 
@@ -30,12 +30,14 @@ jobs:
       - name: Gerar instalador Windows
         run: npm run build:win
 
-      - name: Publicar artefatos (.exe)
+      - name: Publicar artefatos (.exe + metadados de update)
         uses: actions/upload-artifact@v4
         with:
           name: dybass-estudioso-windows
           path: |
             dist/*.exe
+            dist/*.blockmap
+            dist/latest.yml
           if-no-files-found: error
 
   build-linux:
@@ -55,19 +57,48 @@ jobs:
       - name: Gerar AppImage
         run: npm run build:linux
 
-      - name: Publicar artefatos (AppImage)
+      - name: Publicar artefatos (AppImage + metadados de update)
         uses: actions/upload-artifact@v4
         with:
           name: dybass-estudioso-linux
           path: |
             dist/*.AppImage
+            dist/latest-linux.yml
+          if-no-files-found: error
+
+  build-mac:
+    name: macOS (.dmg)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci || npm install
+
+      - name: Gerar app macOS (não assinado)
+        run: npm run build:mac
+
+      - name: Publicar artefatos (.dmg / .zip)
+        uses: actions/upload-artifact@v4
+        with:
+          name: dybass-estudioso-mac
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/latest-mac.yml
           if-no-files-found: error
 
   # Cria um Release com os instaladores anexados.
   # Funciona via tag (push de v*) OU via disparo manual informando "release_tag".
+  # Os arquivos latest*.yml e *.blockmap são o que o auto-update (electron-updater) consome.
   release:
     name: Publicar Release
-    needs: [build-windows, build-linux]
+    needs: [build-windows, build-linux, build-mac]
     if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
     runs-on: ubuntu-latest
     permissions:
@@ -88,4 +119,8 @@ jobs:
           files: |
             artifacts/**/*.exe
             artifacts/**/*.AppImage
+            artifacts/**/*.dmg
+            artifacts/**/*.zip
+            artifacts/**/*.blockmap
+            artifacts/**/latest*.yml
           generate_release_notes: true

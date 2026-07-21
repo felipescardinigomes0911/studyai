@@ -1,18 +1,20 @@
 {
   "name": "dybass-estudioso",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "App de estudos inteligente",
   "author": "Dybass",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder",
-    "build:win": "electron-builder --win",
-    "build:linux": "electron-builder --linux",
-    "build:all": "electron-builder --win --linux"
+    "build": "electron-builder -p never",
+    "build:win": "electron-builder --win -p never",
+    "build:linux": "electron-builder --linux -p never",
+    "build:mac": "electron-builder --mac -p never",
+    "build:all": "electron-builder --win --linux -p never"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0"
+    "@anthropic-ai/sdk": "^0.39.0",
+    "electron-updater": "^6.3.9"
   },
   "devDependencies": {
     "electron": "^31.0.0",
@@ -21,7 +23,11 @@
   "build": {
     "appId": "com.dybass.estudioso",
     "productName": "Dybass Estudioso",
-    "publish": null,
+    "publish": {
+      "provider": "github",
+      "owner": "felipescardinigomes0911",
+      "repo": "studyai"
+    },
     "files": [
       "main.js",
       "preload.js",
@@ -55,6 +61,14 @@
         }
       ],
       "icon": "assets/icon.png"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "assets/icon.png",
+      "category": "public.app-category.education"
     },
     "nsis": {
       "oneClick": false,
