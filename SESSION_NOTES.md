@@ -27,9 +27,15 @@ Visual **preto e vermelho escuro** (`#0a0a0a` / `#8b0000`). Nome/autor: "Dybass"
   processamento de texto: detecção de capítulos, pontuação de sentenças,
   extração e cloze deletion. Expõe `window.offlineAI` com `detectChapters`,
   `generateSummary`, `generateFlashcards`, `generateQuiz`.
-- `index.html` — app React single-file (React/Babel/PDF.js **locais** em
-  `vendor/`, NÃO CDN — CDN causava tela preta com antivírus). Seções:
-  Conteúdo, Resumo, Flashcards, Quiz, Estatísticas. Onboarding em 5 passos.
+- `app.jsx` — **código-fonte da UI (React/JSX)**. É onde se edita a interface.
+- `app.js` — **gerado** por `npm run build:jsx` a partir de `app.jsx` (NÃO editar
+  à mão). O JSX é transpilado no BUILD, não no navegador — o Babel não é mais
+  carregado em runtime (inicialização mais rápida). `prestart`/`prebuild*` já
+  rodam o `build:jsx` automaticamente.
+- `scripts/build-jsx.js` — compila `app.jsx` → `app.js` com o Babel vendorizado.
+- `index.html` — só a casca: `<head>`, estilos e `<script src="app.js">`.
+  React/PDF.js **locais** em `vendor/`, NÃO CDN (CDN causava tela preta com
+  antivírus). Seções: Conteúdo, Resumo, Flashcards, Quiz, Estatísticas.
 - `package.json` — electron-builder (NSIS + portable Windows, AppImage Linux).
   Tem `"author": "Dybass"` e `"publish": null` (necessários para build offline).
 - `.github/workflows/build.yml` — CI/CD: compila .exe e AppImage a cada push;
@@ -86,6 +92,8 @@ Commits relevantes no branch:
 - **Ícone deve ser 256x256** (electron-builder exige no Windows).
 - **Push de tag `v*` dá HTTP 403** nesta infra — use `workflow_dispatch` com
   input `release_tag` para criar Release.
-- Validar JSX após editar `index.html`:
-  `node -e "..."` transformando com `vendor/babel.min.js` (preset react).
+- Editou a UI? Edite `app.jsx` e rode `npm run build:jsx` (regenera `app.js`).
+  NÃO edite `app.js` à mão — é gerado. O `build-jsx.js` já valida a sintaxe.
 - Validar `offline.js`/`main.js` com `node -c`.
+- `vendor/babel.min.js` agora é só de BUILD (não vai no app empacotado —
+  ver `!vendor/babel.min.js` em `build.files`).

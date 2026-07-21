@@ -5,11 +5,18 @@
   "author": "Dybass",
   "main": "main.js",
   "scripts": {
+    "build:jsx": "node scripts/build-jsx.js",
+    "prestart": "npm run build:jsx",
     "start": "electron .",
+    "prebuild": "npm run build:jsx",
     "build": "electron-builder -p never",
+    "prebuild:win": "npm run build:jsx",
     "build:win": "electron-builder --win -p never",
+    "prebuild:linux": "npm run build:jsx",
     "build:linux": "electron-builder --linux -p never",
+    "prebuild:mac": "npm run build:jsx",
     "build:mac": "electron-builder --mac -p never",
+    "prebuild:all": "npm run build:jsx",
     "build:all": "electron-builder --win --linux -p never"
   },
   "dependencies": {
@@ -33,8 +40,10 @@
       "preload.js",
       "offline.js",
       "index.html",
+      "app.js",
       "assets/**/*",
-      "vendor/**/*"
+      "vendor/**/*",
+      "!vendor/babel.min.js"
     ],
     "linux": {
       "target": "AppImage",
