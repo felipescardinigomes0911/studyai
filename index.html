@@ -310,6 +310,61 @@
       margin-bottom: 24px;
     }
 
+    /* Lista de resumos salvos (histórico do caderno) */
+    .saved-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+    .saved-chip {
+      display: inline-flex;
+      align-items: stretch;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #141414;
+    }
+    .saved-chip.active { border-color: #8b0000; }
+    .saved-chip-open {
+      background: transparent;
+      color: #ccc;
+      border: none;
+      padding: 6px 10px;
+      font-size: 13px;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .saved-chip.active .saved-chip-open { color: #fff; }
+    .saved-chip-open:hover { color: #fff; }
+    .saved-chip-del {
+      background: transparent;
+      color: #666;
+      border: none;
+      border-left: 1px solid #2a2a2a;
+      padding: 0 8px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .saved-chip-del:hover { color: #ff6b6b; background: #1a0000; }
+    body.light .saved-chip { background: #fff; border-color: #d8d8d8; }
+    body.light .saved-chip-open { color: #444; }
+    body.light .saved-chip-del { border-left-color: #e0e0e0; }
+
+    /* Botão de excluir o cartão atual */
+    .card-del-btn {
+      background: transparent;
+      border: 1px solid #2a2a2a;
+      color: #777;
+      border-radius: 6px;
+      padding: 2px 8px;
+      margin-left: 10px;
+      cursor: pointer;
+      font-size: 12px;
+      vertical-align: middle;
+    }
+    .card-del-btn:hover { color: #ff6b6b; border-color: #8b0000; }
+
     .summary-result {
       background: #111;
       border: 1px solid #1e1e1e;

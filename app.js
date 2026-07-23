@@ -208,6 +208,36 @@ function loadContentFor(id) {
   return localStorage.getItem(setKey(id, 'content')) || '';
 }
 
+// ─── Histórico de resumos por caderno ─────────────────────────────────────
+// Cada geração vira um item na lista (não sobrescreve os anteriores).
+function summaryTitle(type, ts) {
+  const d = new Date(ts);
+  const p = n => String(n).padStart(2, '0');
+  return (type === 'completo' ? 'Completo' : 'Simples') + ' · ' + p(d.getDate()) + '/' + p(d.getMonth() + 1) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+function loadSummaries(setId) {
+  try {
+    const arr = JSON.parse(localStorage.getItem(setKey(setId, 'summaries')) || 'null');
+    if (Array.isArray(arr)) return arr;
+  } catch {/* ignora */}
+  // Migração do formato antigo (um único resumo) para a lista.
+  const old = localStorage.getItem(setKey(setId, 'summary'));
+  if (old) {
+    const type = localStorage.getItem(setKey(setId, 'summary_type')) || 'completo';
+    return [{
+      id: 'mig',
+      title: summaryTitle(type, Date.now()),
+      type,
+      text: old,
+      at: Date.now()
+    }];
+  }
+  return [];
+}
+function saveSummaries(setId, list) {
+  safeSetItem(setKey(setId, 'summaries'), JSON.stringify(list));
+}
+
 // Apaga todo o material de um caderno.
 function purgeSet(id) {
   SET_PARTS.forEach(n => localStorage.removeItem(setKey(id, n)));
@@ -511,10 +541,11 @@ function SummarySection({
   offline,
   setId
 }) {
-  const [summary, setSummary] = useState(() => localStorage.getItem(setKey(setId, 'summary')) || '');
-  const [summaryType, setSummaryType] = useState(() => localStorage.getItem(setKey(setId, 'summary_type')) || '');
+  const [summaries, setSummaries] = useState(() => loadSummaries(setId));
+  const [activeSumId, setActiveSumId] = useState(() => (loadSummaries(setId)[0] || {}).id || null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const active = summaries.find(s => s.id === activeSumId) || summaries[0] || null;
   const generate = async type => {
     if (!content.trim()) {
       setError('Adicione conteúdo de estudo na seção "Conteúdo" primeiro.');
@@ -525,10 +556,18 @@ function SummarySection({
     try {
       const result = await runAI(offline, 'generateSummary', content, type);
       if (result.success) {
-        setSummary(result.data);
-        setSummaryType(type);
-        safeSetItem(setKey(setId, 'summary'), result.data);
-        safeSetItem(setKey(setId, 'summary_type'), type);
+        // Novo resumo entra no TOPO da lista, sem apagar os anteriores.
+        const item = {
+          id: 's' + Date.now().toString(36),
+          title: summaryTitle(type, Date.now()),
+          type,
+          text: result.data,
+          at: Date.now()
+        };
+        const next = [item, ...summaries];
+        setSummaries(next);
+        saveSummaries(setId, next);
+        setActiveSumId(item.id);
         recordEvent('summariesGenerated');
       } else {
         setError('Erro ao gerar resumo: ' + result.error);
@@ -538,9 +577,15 @@ function SummarySection({
     }
     setLoading(false);
   };
+  const removeSummary = id => {
+    const next = summaries.filter(s => s.id !== id);
+    setSummaries(next);
+    saveSummaries(setId, next);
+    if (activeSumId === id) setActiveSumId((next[0] || {}).id || null);
+  };
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "page-header"
-  }, /*#__PURE__*/React.createElement("h2", null, "Resumo"), /*#__PURE__*/React.createElement("p", null, "Resumo detalhado ou simplificado, organizado por cap\xEDtulos/t\xF3picos")), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("h2", null, "Resumo"), /*#__PURE__*/React.createElement("p", null, "Cada gera\xE7\xE3o vira um resumo salvo \u2014 eles se acumulam neste caderno.")), /*#__PURE__*/React.createElement("div", {
     className: "page-content"
   }, /*#__PURE__*/React.createElement("div", {
     className: "summary-actions"
@@ -548,20 +593,33 @@ function SummarySection({
     className: "btn btn-primary",
     onClick: () => generate('completo'),
     disabled: loading
-  }, loading && summaryType !== 'simples' ? /*#__PURE__*/React.createElement("span", {
+  }, loading ? /*#__PURE__*/React.createElement("span", {
     className: "loading-spinner"
-  }) : icons.sparkle, "Resumo Completo"), /*#__PURE__*/React.createElement("button", {
+  }) : icons.sparkle, summaries.length ? 'Novo Resumo Completo' : 'Resumo Completo'), /*#__PURE__*/React.createElement("button", {
     className: "btn btn-outline",
     onClick: () => generate('simples'),
     disabled: loading
-  }, loading && summaryType === 'simples' ? /*#__PURE__*/React.createElement("span", {
+  }, loading ? /*#__PURE__*/React.createElement("span", {
     className: "loading-spinner"
-  }) : '•', "Resumo Simples"), summary && !loading && /*#__PURE__*/React.createElement("span", {
+  }) : '•', summaries.length ? 'Novo Resumo Simples' : 'Resumo Simples'), summaries.length > 0 && /*#__PURE__*/React.createElement("span", {
     className: "badge badge-red",
     style: {
       marginLeft: 'auto'
     }
-  }, summaryType === 'completo' ? 'Completo' : 'Simples')), error && /*#__PURE__*/React.createElement("div", {
+  }, summaries.length, " salvo", summaries.length > 1 ? 's' : '')), !loading && summaries.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "saved-list"
+  }, summaries.map(s => /*#__PURE__*/React.createElement("div", {
+    key: s.id,
+    className: `saved-chip ${s.id === active.id ? 'active' : ''}`
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "saved-chip-open",
+    onClick: () => setActiveSumId(s.id),
+    title: "Abrir este resumo"
+  }, s.title), /*#__PURE__*/React.createElement("button", {
+    className: "saved-chip-del",
+    onClick: () => removeSummary(s.id),
+    title: "Excluir este resumo"
+  }, icons.cross)))), error && /*#__PURE__*/React.createElement("div", {
     className: "error-banner"
   }, icons.cross, " ", error), loading && /*#__PURE__*/React.createElement("div", {
     className: "empty-state"
@@ -577,9 +635,9 @@ function SummarySection({
     className: "empty-title"
   }, "Gerando resumo..."), /*#__PURE__*/React.createElement("div", {
     className: "empty-desc"
-  }, "A IA est\xE1 processando seu conte\xFAdo")), !loading && summary && /*#__PURE__*/React.createElement("div", {
+  }, "A IA est\xE1 processando seu conte\xFAdo")), !loading && active && /*#__PURE__*/React.createElement("div", {
     className: "summary-result"
-  }, renderSummary(summary)), !loading && !summary && !error && /*#__PURE__*/React.createElement("div", {
+  }, renderSummary(active.text)), !loading && !active && !error && /*#__PURE__*/React.createElement("div", {
     className: "empty-state"
   }, /*#__PURE__*/React.createElement("div", {
     className: "empty-icon"
@@ -587,7 +645,7 @@ function SummarySection({
     className: "empty-title"
   }, "Nenhum resumo gerado"), /*#__PURE__*/React.createElement("div", {
     className: "empty-desc"
-  }, "Clique em \"Resumo Completo\" para um resumo detalhado ou \"Resumo Simples\" para bullet points r\xE1pidos."))));
+  }, "Clique em \"Resumo Completo\" para um resumo detalhado ou \"Resumo Simples\" para bullet points r\xE1pidos. Cada resumo fica salvo aqui."))));
 }
 
 // ─── Flashcards Section ───────────────────────────────────────────────────
@@ -693,15 +751,29 @@ function FlashcardsSection({
     try {
       const result = await runAI(offline, 'generateFlashcards', content);
       if (result.success) {
-        setCards(result.data);
+        // SOMA ao baralho existente, ignorando cartões repetidos (mesma frente+verso).
+        const oldLen = cards.length;
+        const seen = new Set(cards.map(srsKey));
+        const novos = result.data.filter(c => {
+          const k = srsKey(c);
+          if (seen.has(k)) return false;
+          seen.add(k);
+          return true;
+        });
+        const merged = cards.concat(novos);
+        setCards(merged);
         setChapterFilter(null);
-        setCurrent(0);
         setFlipped(false);
         setVisited(new Set());
         setReviewMode(false);
         setQueue([]);
-        safeSetItem(setKey(setId, 'flashcards'), JSON.stringify(result.data));
+        // Vai direto para o 1º cartão novo (se houver).
+        setCurrent(novos.length ? oldLen : 0);
+        safeSetItem(setKey(setId, 'flashcards'), JSON.stringify(merged));
         recordEvent('flashcardsGenerated');
+        if (novos.length === 0) {
+          setError('Nenhum cartão novo — todos já estavam no baralho deste caderno.');
+        }
       } else {
         setError('Erro ao gerar flashcards: ' + result.error);
       }
@@ -709,6 +781,30 @@ function FlashcardsSection({
       setError('Erro de conexão. Verifique sua internet e tente novamente.');
     }
     setLoading(false);
+  };
+
+  // Apaga o baralho inteiro do caderno (com confirmação).
+  const clearAll = () => {
+    if (!cards.length) return;
+    if (!confirm('Apagar TODOS os flashcards deste caderno? Isso não pode ser desfeito.')) return;
+    setCards([]);
+    safeSetItem(setKey(setId, 'flashcards'), JSON.stringify([]));
+    setCurrent(0);
+    setFlipped(false);
+    setReviewMode(false);
+    setQueue([]);
+    setChapterFilter(null);
+  };
+
+  // Remove um único cartão (o que está sendo visto no modo navegação).
+  const removeCard = card => {
+    if (!card) return;
+    const k = srsKey(card);
+    const merged = cards.filter(c => srsKey(c) !== k);
+    setCards(merged);
+    safeSetItem(setKey(setId, 'flashcards'), JSON.stringify(merged));
+    setCurrent(c => Math.max(0, Math.min(c, merged.length - 1)));
+    setFlipped(false);
   };
   const goTo = idx => {
     setVisited(v => new Set([...v, current]));
@@ -778,10 +874,11 @@ function FlashcardsSection({
   }, /*#__PURE__*/React.createElement("button", {
     className: "btn btn-primary",
     onClick: generate,
-    disabled: loading
+    disabled: loading,
+    title: cards.length ? 'Cria novos cartões e SOMA ao baralho (sem apagar os antigos)' : ''
   }, loading ? /*#__PURE__*/React.createElement("span", {
     className: "loading-spinner"
-  }) : icons.sparkle, cards.length ? 'Gerar Novos' : 'Gerar Flashcards'), cards.length > 0 && !loading && !reviewMode && /*#__PURE__*/React.createElement("button", {
+  }) : icons.sparkle, cards.length ? `Gerar mais (${cards.length} no baralho)` : 'Gerar Flashcards'), cards.length > 0 && !loading && !reviewMode && /*#__PURE__*/React.createElement("button", {
     className: "btn btn-outline",
     onClick: startReview,
     title: "Repeti\xE7\xE3o espa\xE7ada: prioriza os cart\xF5es que voc\xEA ainda n\xE3o fixou"
@@ -814,7 +911,14 @@ function FlashcardsSection({
     title: "Arquivo JSON"
   }, icons.save, " JSON"), exportMsg && /*#__PURE__*/React.createElement("span", {
     className: "export-toast"
-  }, icons.check, " ", exportMsg))), !loading && cards.length > 0 && !reviewMode && /*#__PURE__*/React.createElement(ChapterChips, {
+  }, icons.check, " ", exportMsg), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-danger btn-sm",
+    onClick: clearAll,
+    title: "Apagar todos os flashcards deste caderno",
+    style: {
+      marginLeft: 'auto'
+    }
+  }, icons.trash, " Limpar todos"))), !loading && cards.length > 0 && !reviewMode && /*#__PURE__*/React.createElement(ChapterChips, {
     chapters: chapters,
     value: chapterFilter,
     onChange: setChapterFilter
@@ -862,7 +966,11 @@ function FlashcardsSection({
     className: "flashcard-container"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flashcard-progress"
-  }, reviewMode ? `Revisão · faltam ${queue.length} · ✓ ${reviewStats.good} · ↺ ${reviewStats.again}` : `${current + 1} / ${visibleCards.length}`), card && card.chapter && /*#__PURE__*/React.createElement("div", {
+  }, reviewMode ? `Revisão · faltam ${queue.length} · ✓ ${reviewStats.good} · ↺ ${reviewStats.again}` : `${current + 1} / ${visibleCards.length}`, !reviewMode && card && /*#__PURE__*/React.createElement("button", {
+    className: "card-del-btn",
+    onClick: () => removeCard(card),
+    title: "Excluir este cart\xE3o"
+  }, icons.trash)), card && card.chapter && /*#__PURE__*/React.createElement("div", {
     className: "chapter-tag"
   }, card.chapter), /*#__PURE__*/React.createElement("div", {
     className: "flashcard-scene",

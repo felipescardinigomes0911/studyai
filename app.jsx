@@ -169,6 +169,31 @@
 
     function loadContentFor(id) { return localStorage.getItem(setKey(id, 'content')) || ''; }
 
+    // ─── Histórico de resumos por caderno ─────────────────────────────────────
+    // Cada geração vira um item na lista (não sobrescreve os anteriores).
+    function summaryTitle(type, ts) {
+      const d = new Date(ts);
+      const p = n => String(n).padStart(2, '0');
+      return (type === 'completo' ? 'Completo' : 'Simples') +
+        ' · ' + p(d.getDate()) + '/' + p(d.getMonth() + 1) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    }
+
+    function loadSummaries(setId) {
+      try {
+        const arr = JSON.parse(localStorage.getItem(setKey(setId, 'summaries')) || 'null');
+        if (Array.isArray(arr)) return arr;
+      } catch { /* ignora */ }
+      // Migração do formato antigo (um único resumo) para a lista.
+      const old = localStorage.getItem(setKey(setId, 'summary'));
+      if (old) {
+        const type = localStorage.getItem(setKey(setId, 'summary_type')) || 'completo';
+        return [{ id: 'mig', title: summaryTitle(type, Date.now()), type, text: old, at: Date.now() }];
+      }
+      return [];
+    }
+
+    function saveSummaries(setId, list) { safeSetItem(setKey(setId, 'summaries'), JSON.stringify(list)); }
+
     // Apaga todo o material de um caderno.
     function purgeSet(id) {
       SET_PARTS.forEach(n => localStorage.removeItem(setKey(id, n)));
@@ -467,10 +492,12 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
 
     // ─── Summary Section ──────────────────────────────────────────────────────
     function SummarySection({ content, offline, setId }) {
-      const [summary, setSummary] = useState(() => localStorage.getItem(setKey(setId, 'summary')) || '');
-      const [summaryType, setSummaryType] = useState(() => localStorage.getItem(setKey(setId, 'summary_type')) || '');
+      const [summaries, setSummaries] = useState(() => loadSummaries(setId));
+      const [activeSumId, setActiveSumId] = useState(() => (loadSummaries(setId)[0] || {}).id || null);
       const [loading, setLoading] = useState(false);
       const [error, setError] = useState('');
+
+      const active = summaries.find(s => s.id === activeSumId) || summaries[0] || null;
 
       const generate = async (type) => {
         if (!content.trim()) {
@@ -482,10 +509,16 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
         try {
           const result = await runAI(offline, 'generateSummary', content, type);
           if (result.success) {
-            setSummary(result.data);
-            setSummaryType(type);
-            safeSetItem(setKey(setId, 'summary'), result.data);
-            safeSetItem(setKey(setId, 'summary_type'), type);
+            // Novo resumo entra no TOPO da lista, sem apagar os anteriores.
+            const item = {
+              id: 's' + Date.now().toString(36),
+              title: summaryTitle(type, Date.now()),
+              type, text: result.data, at: Date.now(),
+            };
+            const next = [item, ...summaries];
+            setSummaries(next);
+            saveSummaries(setId, next);
+            setActiveSumId(item.id);
             recordEvent('summariesGenerated');
           } else {
             setError('Erro ao gerar resumo: ' + result.error);
@@ -496,36 +529,51 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
         setLoading(false);
       };
 
+      const removeSummary = (id) => {
+        const next = summaries.filter(s => s.id !== id);
+        setSummaries(next);
+        saveSummaries(setId, next);
+        if (activeSumId === id) setActiveSumId((next[0] || {}).id || null);
+      };
+
       return (
         <div>
           <div className="page-header">
             <h2>Resumo</h2>
-            <p>Resumo detalhado ou simplificado, organizado por capítulos/tópicos</p>
+            <p>Cada geração vira um resumo salvo — eles se acumulam neste caderno.</p>
           </div>
           <div className="page-content">
             <div className="summary-actions">
-              <button
-                className="btn btn-primary"
-                onClick={() => generate('completo')}
-                disabled={loading}
-              >
-                {loading && summaryType !== 'simples' ? <span className="loading-spinner" /> : icons.sparkle}
-                Resumo Completo
+              <button className="btn btn-primary" onClick={() => generate('completo')} disabled={loading}>
+                {loading ? <span className="loading-spinner" /> : icons.sparkle}
+                {summaries.length ? 'Novo Resumo Completo' : 'Resumo Completo'}
               </button>
-              <button
-                className="btn btn-outline"
-                onClick={() => generate('simples')}
-                disabled={loading}
-              >
-                {loading && summaryType === 'simples' ? <span className="loading-spinner" /> : '•'}
-                Resumo Simples
+              <button className="btn btn-outline" onClick={() => generate('simples')} disabled={loading}>
+                {loading ? <span className="loading-spinner" /> : '•'}
+                {summaries.length ? 'Novo Resumo Simples' : 'Resumo Simples'}
               </button>
-              {summary && !loading && (
+              {summaries.length > 0 && (
                 <span className="badge badge-red" style={{marginLeft: 'auto'}}>
-                  {summaryType === 'completo' ? 'Completo' : 'Simples'}
+                  {summaries.length} salvo{summaries.length > 1 ? 's' : ''}
                 </span>
               )}
             </div>
+
+            {/* Lista dos resumos salvos (histórico do caderno) */}
+            {!loading && summaries.length > 0 && (
+              <div className="saved-list">
+                {summaries.map(s => (
+                  <div key={s.id} className={`saved-chip ${s.id === active.id ? 'active' : ''}`}>
+                    <button className="saved-chip-open" onClick={() => setActiveSumId(s.id)} title="Abrir este resumo">
+                      {s.title}
+                    </button>
+                    <button className="saved-chip-del" onClick={() => removeSummary(s.id)} title="Excluir este resumo">
+                      {icons.cross}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {error && (
               <div className="error-banner">
@@ -541,16 +589,17 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
               </div>
             )}
 
-            {!loading && summary && (
-              <div className="summary-result">{renderSummary(summary)}</div>
+            {!loading && active && (
+              <div className="summary-result">{renderSummary(active.text)}</div>
             )}
 
-            {!loading && !summary && !error && (
+            {!loading && !active && !error && (
               <div className="empty-state">
                 <div className="empty-icon">{icons.summary}</div>
                 <div className="empty-title">Nenhum resumo gerado</div>
                 <div className="empty-desc">
                   Clique em "Resumo Completo" para um resumo detalhado ou "Resumo Simples" para bullet points rápidos.
+                  Cada resumo fica salvo aqui.
                 </div>
               </div>
             )}
@@ -646,15 +695,29 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
         try {
           const result = await runAI(offline, 'generateFlashcards', content);
           if (result.success) {
-            setCards(result.data);
+            // SOMA ao baralho existente, ignorando cartões repetidos (mesma frente+verso).
+            const oldLen = cards.length;
+            const seen = new Set(cards.map(srsKey));
+            const novos = result.data.filter(c => {
+              const k = srsKey(c);
+              if (seen.has(k)) return false;
+              seen.add(k);
+              return true;
+            });
+            const merged = cards.concat(novos);
+            setCards(merged);
             setChapterFilter(null);
-            setCurrent(0);
             setFlipped(false);
             setVisited(new Set());
             setReviewMode(false);
             setQueue([]);
-            safeSetItem(setKey(setId, 'flashcards'), JSON.stringify(result.data));
+            // Vai direto para o 1º cartão novo (se houver).
+            setCurrent(novos.length ? oldLen : 0);
+            safeSetItem(setKey(setId, 'flashcards'), JSON.stringify(merged));
             recordEvent('flashcardsGenerated');
+            if (novos.length === 0) {
+              setError('Nenhum cartão novo — todos já estavam no baralho deste caderno.');
+            }
           } else {
             setError('Erro ao gerar flashcards: ' + result.error);
           }
@@ -662,6 +725,26 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
           setError('Erro de conexão. Verifique sua internet e tente novamente.');
         }
         setLoading(false);
+      };
+
+      // Apaga o baralho inteiro do caderno (com confirmação).
+      const clearAll = () => {
+        if (!cards.length) return;
+        if (!confirm('Apagar TODOS os flashcards deste caderno? Isso não pode ser desfeito.')) return;
+        setCards([]);
+        safeSetItem(setKey(setId, 'flashcards'), JSON.stringify([]));
+        setCurrent(0); setFlipped(false); setReviewMode(false); setQueue([]); setChapterFilter(null);
+      };
+
+      // Remove um único cartão (o que está sendo visto no modo navegação).
+      const removeCard = (card) => {
+        if (!card) return;
+        const k = srsKey(card);
+        const merged = cards.filter(c => srsKey(c) !== k);
+        setCards(merged);
+        safeSetItem(setKey(setId, 'flashcards'), JSON.stringify(merged));
+        setCurrent(c => Math.max(0, Math.min(c, merged.length - 1)));
+        setFlipped(false);
       };
 
       const goTo = (idx) => {
@@ -730,9 +813,9 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
           </div>
           <div className="page-content">
             <div className="export-bar" style={{marginBottom:24}}>
-              <button className="btn btn-primary" onClick={generate} disabled={loading}>
+              <button className="btn btn-primary" onClick={generate} disabled={loading} title={cards.length ? 'Cria novos cartões e SOMA ao baralho (sem apagar os antigos)' : ''}>
                 {loading ? <span className="loading-spinner" /> : icons.sparkle}
-                {cards.length ? 'Gerar Novos' : 'Gerar Flashcards'}
+                {cards.length ? `Gerar mais (${cards.length} no baralho)` : 'Gerar Flashcards'}
               </button>
               {cards.length > 0 && !loading && !reviewMode && (
                 <button className="btn btn-outline" onClick={startReview} title="Repetição espaçada: prioriza os cartões que você ainda não fixou">
@@ -758,6 +841,9 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
                     {icons.save} JSON
                   </button>
                   {exportMsg && <span className="export-toast">{icons.check} {exportMsg}</span>}
+                  <button className="btn btn-danger btn-sm" onClick={clearAll} title="Apagar todos os flashcards deste caderno" style={{marginLeft:'auto'}}>
+                    {icons.trash} Limpar todos
+                  </button>
                 </React.Fragment>
               )}
             </div>
@@ -805,6 +891,15 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
                   {reviewMode
                     ? `Revisão · faltam ${queue.length} · ✓ ${reviewStats.good} · ↺ ${reviewStats.again}`
                     : `${current + 1} / ${visibleCards.length}`}
+                  {!reviewMode && card && (
+                    <button
+                      className="card-del-btn"
+                      onClick={() => removeCard(card)}
+                      title="Excluir este cartão"
+                    >
+                      {icons.trash}
+                    </button>
+                  )}
                 </div>
 
                 {card && card.chapter && (

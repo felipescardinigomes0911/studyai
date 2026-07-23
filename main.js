@@ -102,9 +102,16 @@ function checkForUpdates() {
   } catch { /* electron-updater ausente: ignora */ }
 }
 
+// Pré-aquece o backend (plano free do Render "dorme"). Assim, quando o usuário
+// for gerar o primeiro resumo, o servidor já está acordado — sem os ~50s de espera.
+function warmUpBackend() {
+  fetch(BACKEND_URL + '/health').catch(() => { /* sem internet: ignora */ });
+}
+
 app.whenReady().then(() => {
   createWindow();
   checkForUpdates();
+  warmUpBackend();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
