@@ -1,47 +1,45 @@
-const { app, BrowserWindow, ipcMain, dialog, safeStorage } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
 let mainWindow;
 
-// ─── Chave de API ───────────────────────────────────────────────────────────
-// A chave pode vir da variável de ambiente OU ser salva pelo próprio app.
-// Quando o SO oferece criptografia (safeStorage), a chave é gravada cifrada
-// com o cofre de credenciais do sistema; senão, cai no formato antigo em texto.
-function keyFilePath() {
-  return path.join(app.getPath('userData'), 'api-key.json');
-}
+// ─── Backend (o servidor que guarda a chave da Anthropic) ─────────────────────
+// O app NÃO tem mais a chave da Anthropic. Ele fala com o nosso backend, que
+// guarda a chave com segurança no servidor e exige um "código de acesso".
+const BACKEND_URL = 'https://dybass-studyai.onrender.com';
 
-function getApiKey() {
-  if (process.env.ANTHROPIC_API_KEY) return process.env.ANTHROPIC_API_KEY;
+// O código de acesso é injetado no BUILD (a partir de um segredo do GitHub) no
+// arquivo runtime-config.json; em desenvolvimento, pode vir de uma variável de
+// ambiente. Assim ele nunca fica escrito no código-fonte.
+function getAccessCode() {
+  if (process.env.DYBASS_ACCESS_CODE) return process.env.DYBASS_ACCESS_CODE;
   try {
-    const raw = fs.readFileSync(keyFilePath(), 'utf-8');
-    const data = JSON.parse(raw);
-    // Formato novo (cifrado): { enc: "<base64>" }.
-    if (data.enc && safeStorage.isEncryptionAvailable()) {
-      return safeStorage.decryptString(Buffer.from(data.enc, 'base64'));
-    }
-    // Formato antigo (texto puro) — mantido para compatibilidade.
-    return data.apiKey || '';
+    const raw = fs.readFileSync(path.join(__dirname, 'runtime-config.json'), 'utf-8');
+    return JSON.parse(raw).accessCode || '';
   } catch {
     return '';
   }
 }
 
-function setApiKey(key) {
+// Chama o backend, que repassa para a Anthropic. Devolve a resposta no mesmo
+// formato da API da Anthropic ({ content: [...] }).
+async function callBackend(payload) {
+  let res;
   try {
-    const value = String(key || '');
-    let payload;
-    if (value && safeStorage.isEncryptionAvailable()) {
-      payload = { enc: safeStorage.encryptString(value).toString('base64') };
-    } else {
-      payload = { apiKey: value };
-    }
-    fs.writeFileSync(keyFilePath(), JSON.stringify(payload), 'utf-8');
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error.message };
+    res = await fetch(BACKEND_URL + '/api/chat', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-access-code': getAccessCode() },
+      body: JSON.stringify(payload),
+    });
+  } catch (e) {
+    throw new Error('Não foi possível conectar ao servidor. Verifique sua internet e tente de novo.');
   }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || ('Erro do servidor (HTTP ' + res.status + ').'));
+  }
+  return data;
 }
 
 function createWindow() {
@@ -78,16 +76,6 @@ ipcMain.handle('export-file', async (event, { defaultName, content, filters }) =
   } catch (error) {
     return { success: false, error: error.message };
   }
-});
-
-// Informa ao renderer se há chave de API configurada (para sugerir modo offline).
-ipcMain.handle('has-api-key', async () => {
-  return !!getApiKey();
-});
-
-// Salva a chave de API digitada pelo usuário no app.
-ipcMain.handle('set-api-key', async (event, key) => {
-  return setApiKey(key);
 });
 
 // Verifica atualizações no GitHub Releases e avisa quando houver uma nova versão.
@@ -146,11 +134,6 @@ function guardContent(content) {
   return { text };
 }
 
-function client() {
-  const Anthropic = require('@anthropic-ai/sdk');
-  return new Anthropic({ apiKey: getApiKey() });
-}
-
 // O conteúdo vai no system como bloco CACHEÁVEL: como resumo, flashcards e quiz
 // usam o mesmo conteúdo, as chamadas seguintes reaproveitam o cache (mais barato
 // e mais rápido). A tarefa específica vai na mensagem do usuário.
@@ -175,7 +158,7 @@ ipcMain.handle('generate-summary', async (event, content, type) => {
       ? `Crie um resumo DETALHADO e COMPLETO do conteúdo de referência, cobrindo todos os pontos importantes, conceitos-chave e exemplos.\n\n${fmt}`
       : `Crie um resumo SIMPLES e BREVE do conteúdo de referência, com bullet points curtos e diretos (apenas o essencial).\n\n${fmt}`;
 
-    const message = await client().messages.create({
+    const message = await callBackend({
       model: MODEL,
       max_tokens: 8192,
       system: systemWithContent(g.text),
@@ -255,7 +238,7 @@ ipcMain.handle('generate-flashcards', async (event, content) => {
     const g = guardContent(content);
     if (g.error) return { success: false, error: g.error };
 
-    const message = await client().messages.create({
+    const message = await callBackend({
       model: MODEL,
       max_tokens: 8192,
       system: systemWithContent(g.text),
@@ -281,7 +264,7 @@ ipcMain.handle('generate-quiz', async (event, content) => {
     const g = guardContent(content);
     if (g.error) return { success: false, error: g.error };
 
-    const message = await client().messages.create({
+    const message = await callBackend({
       model: MODEL,
       max_tokens: 8192,
       system: systemWithContent(g.text),

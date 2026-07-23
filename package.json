@@ -1,6 +1,6 @@
 {
   "name": "dybass-estudioso",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "App de estudos inteligente",
   "author": "Dybass",
   "main": "main.js",
@@ -20,7 +20,6 @@
     "build:all": "electron-builder --win --linux -p never"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
     "electron-updater": "^6.3.9"
   },
   "devDependencies": {
@@ -41,6 +40,7 @@
       "offline.js",
       "index.html",
       "app.js",
+      "runtime-config.json",
       "assets/**/*",
       "vendor/**/*",
       "!vendor/babel.min.js"

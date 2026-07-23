@@ -491,7 +491,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
             setError('Erro ao gerar resumo: ' + result.error);
           }
         } catch (e) {
-          setError('Erro de conexão. Verifique sua chave de API.');
+          setError('Erro de conexão. Verifique sua internet e tente novamente.');
         }
         setLoading(false);
       };
@@ -659,7 +659,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
             setError('Erro ao gerar flashcards: ' + result.error);
           }
         } catch (e) {
-          setError('Erro de conexão. Verifique sua chave de API.');
+          setError('Erro de conexão. Verifique sua internet e tente novamente.');
         }
         setLoading(false);
       };
@@ -917,7 +917,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
             setError('Erro ao gerar quiz: ' + result.error);
           }
         } catch (e) {
-          setError('Erro de conexão. Verifique sua chave de API.');
+          setError('Erro de conexão. Verifique sua internet e tente novamente.');
         }
         setLoading(false);
       };
@@ -1233,7 +1233,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
         {
           emoji: '🔌',
           title: '3. Online ou Offline',
-          text: 'No Modo Online usamos a IA Claude (precisa de chave de API). No Modo Offline tudo é gerado localmente, sem internet. Alterne na barra lateral.',
+          text: 'No Modo Online usamos a IA Claude pela nuvem — não precisa configurar nada. No Modo Offline tudo é gerado localmente, sem internet. Alterne na barra lateral.',
         },
         {
           emoji: '🔁',
@@ -1275,50 +1275,6 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
               </div>
             </div>
           </div>
-        </div>
-      );
-    }
-
-    // ─── Configuração da chave de API (Modo Online) ──────────────────────────
-    function ApiKeyConfig() {
-      const [key, setKey] = useState('');
-      const [saved, setSaved] = useState(false);
-      const [hasKey, setHasKey] = useState(false);
-
-      useEffect(() => {
-        if (window.electronAPI && window.electronAPI.hasApiKey) {
-          window.electronAPI.hasApiKey().then(setHasKey);
-        }
-      }, []);
-
-      if (!window.electronAPI || !window.electronAPI.setApiKey) return null;
-
-      const save = async () => {
-        const res = await window.electronAPI.setApiKey(key.trim());
-        if (res && res.success) {
-          setHasKey(!!key.trim());
-          setKey('');
-          setSaved(true);
-          setTimeout(() => setSaved(false), 2500);
-        }
-      };
-
-      return (
-        <div className="apikey-box">
-          <div className={`apikey-status ${hasKey ? 'ok' : 'warn'}`}>
-            {hasKey ? '✓ Chave de API configurada' : '⚠ Cole sua chave para usar o Modo Online'}
-          </div>
-          <input
-            className="apikey-input"
-            type="password"
-            placeholder="sk-ant-..."
-            value={key}
-            onChange={e => setKey(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && key.trim()) save(); }}
-          />
-          <button className="btn btn-primary btn-sm" onClick={save} disabled={!key.trim()} style={{width:'100%'}}>
-            {saved ? '✓ Salva!' : 'Salvar chave'}
-          </button>
         </div>
       );
     }
@@ -1383,18 +1339,6 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
       }, [theme]);
 
       const toggleTheme = () => setTheme(t => (t === 'dark' ? 'light' : 'dark'));
-
-      // Se não houver chave de API configurada, ativa o modo offline por padrão.
-      useEffect(() => {
-        if (localStorage.getItem('dybass_offline') === null && window.electronAPI && window.electronAPI.hasApiKey) {
-          window.electronAPI.hasApiKey().then(has => {
-            if (!has) {
-              setOffline(true);
-              localStorage.setItem('dybass_offline', 'true');
-            }
-          });
-        }
-      }, []);
 
       const toggleOffline = () => {
         setOffline(prev => {
@@ -1554,10 +1498,9 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
               </div>
               <div className="mode-hint">
                 {offline
-                  ? 'Gera tudo localmente, sem internet ou chave de API.'
-                  : 'Usa a IA Claude (requer chave de API e internet).'}
+                  ? 'Gera tudo localmente, sem internet.'
+                  : 'Usa a IA Claude pela nuvem (precisa de internet). Nada de configurar chave.'}
               </div>
-              {!offline && <ApiKeyConfig />}
             </div>
             <div className="sidebar-footer">
               <div>{offline ? 'Processamento local' : 'Powered by Claude AI'}</div>

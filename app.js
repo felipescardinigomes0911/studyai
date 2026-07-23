@@ -534,7 +534,7 @@ function SummarySection({
         setError('Erro ao gerar resumo: ' + result.error);
       }
     } catch (e) {
-      setError('Erro de conexão. Verifique sua chave de API.');
+      setError('Erro de conexão. Verifique sua internet e tente novamente.');
     }
     setLoading(false);
   };
@@ -706,7 +706,7 @@ function FlashcardsSection({
         setError('Erro ao gerar flashcards: ' + result.error);
       }
     } catch (e) {
-      setError('Erro de conexão. Verifique sua chave de API.');
+      setError('Erro de conexão. Verifique sua internet e tente novamente.');
     }
     setLoading(false);
   };
@@ -975,7 +975,7 @@ function QuizSection({
         setError('Erro ao gerar quiz: ' + result.error);
       }
     } catch (e) {
-      setError('Erro de conexão. Verifique sua chave de API.');
+      setError('Erro de conexão. Verifique sua internet e tente novamente.');
     }
     setLoading(false);
   };
@@ -1273,7 +1273,7 @@ function Onboarding({
   }, {
     emoji: '🔌',
     title: '3. Online ou Offline',
-    text: 'No Modo Online usamos a IA Claude (precisa de chave de API). No Modo Offline tudo é gerado localmente, sem internet. Alterne na barra lateral.'
+    text: 'No Modo Online usamos a IA Claude pela nuvem — não precisa configurar nada. No Modo Offline tudo é gerado localmente, sem internet. Alterne na barra lateral.'
   }, {
     emoji: '🔁',
     title: '4. Revise e acompanhe',
@@ -1318,49 +1318,6 @@ function Onboarding({
     className: "btn btn-primary",
     onClick: () => last ? finish() : setStep(step + 1)
   }, last ? `${icons.sparkle} Começar` : `Próximo ${icons.right}`)))));
-}
-
-// ─── Configuração da chave de API (Modo Online) ──────────────────────────
-function ApiKeyConfig() {
-  const [key, setKey] = useState('');
-  const [saved, setSaved] = useState(false);
-  const [hasKey, setHasKey] = useState(false);
-  useEffect(() => {
-    if (window.electronAPI && window.electronAPI.hasApiKey) {
-      window.electronAPI.hasApiKey().then(setHasKey);
-    }
-  }, []);
-  if (!window.electronAPI || !window.electronAPI.setApiKey) return null;
-  const save = async () => {
-    const res = await window.electronAPI.setApiKey(key.trim());
-    if (res && res.success) {
-      setHasKey(!!key.trim());
-      setKey('');
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
-    }
-  };
-  return /*#__PURE__*/React.createElement("div", {
-    className: "apikey-box"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: `apikey-status ${hasKey ? 'ok' : 'warn'}`
-  }, hasKey ? '✓ Chave de API configurada' : '⚠ Cole sua chave para usar o Modo Online'), /*#__PURE__*/React.createElement("input", {
-    className: "apikey-input",
-    type: "password",
-    placeholder: "sk-ant-...",
-    value: key,
-    onChange: e => setKey(e.target.value),
-    onKeyDown: e => {
-      if (e.key === 'Enter' && key.trim()) save();
-    }
-  }), /*#__PURE__*/React.createElement("button", {
-    className: "btn btn-primary btn-sm",
-    onClick: save,
-    disabled: !key.trim(),
-    style: {
-      width: '100%'
-    }
-  }, saved ? '✓ Salva!' : 'Salvar chave'));
 }
 
 // ─── Modal de digitação de nome ──────────────────────────────────────────
@@ -1434,18 +1391,6 @@ function App() {
     localStorage.setItem('dybass_theme', theme);
   }, [theme]);
   const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
-
-  // Se não houver chave de API configurada, ativa o modo offline por padrão.
-  useEffect(() => {
-    if (localStorage.getItem('dybass_offline') === null && window.electronAPI && window.electronAPI.hasApiKey) {
-      window.electronAPI.hasApiKey().then(has => {
-        if (!has) {
-          setOffline(true);
-          localStorage.setItem('dybass_offline', 'true');
-        }
-      });
-    }
-  }, []);
   const toggleOffline = () => {
     setOffline(prev => {
       const next = !prev;
@@ -1625,7 +1570,7 @@ function App() {
     className: "slider"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "mode-hint"
-  }, offline ? 'Gera tudo localmente, sem internet ou chave de API.' : 'Usa a IA Claude (requer chave de API e internet).'), !offline && /*#__PURE__*/React.createElement(ApiKeyConfig, null)), /*#__PURE__*/React.createElement("div", {
+  }, offline ? 'Gera tudo localmente, sem internet.' : 'Usa a IA Claude pela nuvem (precisa de internet). Nada de configurar chave.')), /*#__PURE__*/React.createElement("div", {
     className: "sidebar-footer"
   }, /*#__PURE__*/React.createElement("div", null, offline ? 'Processamento local' : 'Powered by Claude AI'), /*#__PURE__*/React.createElement("button", {
     className: "help-btn",
