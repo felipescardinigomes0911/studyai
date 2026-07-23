@@ -30,7 +30,8 @@ jobs:
       - name: Injetar código de acesso (runtime-config.json)
         env:
           DYBASS_ACCESS_CODE: ${{ secrets.DYBASS_ACCESS_CODE }}
-        run: node -e "require('fs').writeFileSync('runtime-config.json', JSON.stringify({accessCode: process.env.DYBASS_ACCESS_CODE || ''}))"
+        run: |
+          node -e "require('fs').writeFileSync('runtime-config.json', JSON.stringify({accessCode: process.env.DYBASS_ACCESS_CODE || ''}))"
 
       - name: Gerar instalador Windows
         run: npm run build:win
@@ -62,7 +63,8 @@ jobs:
       - name: Injetar código de acesso (runtime-config.json)
         env:
           DYBASS_ACCESS_CODE: ${{ secrets.DYBASS_ACCESS_CODE }}
-        run: node -e "require('fs').writeFileSync('runtime-config.json', JSON.stringify({accessCode: process.env.DYBASS_ACCESS_CODE || ''}))"
+        run: |
+          node -e "require('fs').writeFileSync('runtime-config.json', JSON.stringify({accessCode: process.env.DYBASS_ACCESS_CODE || ''}))"
 
       - name: Gerar AppImage
         run: npm run build:linux
@@ -96,7 +98,8 @@ jobs:
       - name: Injetar código de acesso (runtime-config.json)
         env:
           DYBASS_ACCESS_CODE: ${{ secrets.DYBASS_ACCESS_CODE }}
-        run: node -e "require('fs').writeFileSync('runtime-config.json', JSON.stringify({accessCode: process.env.DYBASS_ACCESS_CODE || ''}))"
+        run: |
+          node -e "require('fs').writeFileSync('runtime-config.json', JSON.stringify({accessCode: process.env.DYBASS_ACCESS_CODE || ''}))"
 
       - name: Gerar app macOS (não assinado)
         run: npm run build:mac
