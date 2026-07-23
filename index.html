@@ -70,6 +70,57 @@
       letter-spacing: 1px;
     }
 
+    /* Seletor de cadernos */
+    .set-picker {
+      padding: 12px 12px 4px;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .set-picker-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #666;
+      margin-bottom: 6px;
+    }
+    .set-select {
+      width: 100%;
+      background: #141414;
+      color: #e8e8e8;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 14px;
+      font-family: inherit;
+      cursor: pointer;
+      outline: none;
+    }
+    .set-select:focus { border-color: #8b0000; }
+    .set-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .set-btn {
+      flex: 0 0 auto;
+      background: #141414;
+      color: #bbb;
+      border: 1px solid #2a2a2a;
+      border-radius: 6px;
+      padding: 5px 9px;
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .set-btn:first-child { flex: 1; }
+    .set-btn:hover:not(:disabled) { border-color: #8b0000; color: #fff; }
+    .set-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .set-btn-danger:hover:not(:disabled) { border-color: #8b0000; color: #ff6b6b; }
+    body.light .set-picker { border-bottom-color: #dcdcdc; }
+    body.light .set-picker-label { color: #999; }
+    body.light .set-select { background: #fff; color: #222; border-color: #d0d0d0; }
+    body.light .set-btn { background: #fff; color: #666; border-color: #d0d0d0; }
+
     .sidebar-nav {
       flex: 1;
       padding: 16px 12px;
@@ -949,6 +1000,25 @@
     }
 
     body.light .onboarding-card { background: #fff; border-color: #e6b8b8; }
+
+    /* Modal de nome (criar/renomear caderno) */
+    .name-prompt {
+      width: 90%;
+      max-width: 400px;
+      background: #121212;
+      border: 1px solid #2a0000;
+      border-radius: 14px;
+      padding: 24px;
+      box-shadow: 0 20px 60px rgba(139, 0, 0, 0.25);
+    }
+    body.light .name-prompt { background: #fff; border-color: #e6b8b8; }
+    .name-prompt-title { font-size: 17px; font-weight: 600; margin-bottom: 14px; }
+    .name-prompt-nav {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 16px;
+    }
 
     .onboarding-emoji { font-size: 56px; margin-bottom: 18px; }
 

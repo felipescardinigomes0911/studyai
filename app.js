@@ -30,7 +30,10 @@ const icons = {
   sun: '☀️',
   moon: '🌙',
   upload: '📁',
-  trash: '🗑️'
+  trash: '🗑️',
+  book: '📚',
+  plus: '＋',
+  edit: '✎'
 };
 
 // ─── Motor de IA (online via API ou offline local) ───────────────────────
@@ -177,6 +180,69 @@ function safeSetItem(key, value) {
   }
 }
 
+// ─── Cadernos (biblioteca de conteúdos separados) ─────────────────────────
+// Cada "caderno" guarda seu próprio conteúdo, resumo, flashcards, quiz e
+// agendamento de revisão — tudo namespaceado por um id. Assim dá para ter
+// vários materiais salvos ao mesmo tempo, sem um apagar o outro.
+function setKey(id, name) {
+  return 'set:' + id + ':' + name;
+}
+const SET_PARTS = ['content', 'summary', 'summary_type', 'flashcards', 'quiz', 'srs'];
+function newSetId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+function loadSetsRaw() {
+  try {
+    return JSON.parse(localStorage.getItem('dybass_sets') || 'null');
+  } catch {
+    return null;
+  }
+}
+function saveSets(sets) {
+  safeSetItem('dybass_sets', JSON.stringify(sets));
+}
+function saveActiveId(id) {
+  localStorage.setItem('dybass_active', id);
+}
+function loadContentFor(id) {
+  return localStorage.getItem(setKey(id, 'content')) || '';
+}
+
+// Apaga todo o material de um caderno.
+function purgeSet(id) {
+  SET_PARTS.forEach(n => localStorage.removeItem(setKey(id, n)));
+}
+
+// Garante ao menos um caderno. Na primeira vez (upgrade de versão antiga),
+// migra as chaves globais antigas (dybass_content, _summary, etc.) para o
+// primeiro caderno, para nada se perder.
+function ensureSets() {
+  let sets = loadSetsRaw();
+  if (sets && sets.length) return sets;
+  const id = newSetId();
+  sets = [{
+    id,
+    name: 'Meu conteúdo',
+    createdAt: Date.now()
+  }];
+  const legacy = [['dybass_content', 'content'], ['dybass_summary', 'summary'], ['dybass_summary_type', 'summary_type'], ['dybass_flashcards', 'flashcards'], ['dybass_quiz', 'quiz'], ['dybass_srs', 'srs']];
+  for (const [oldK, part] of legacy) {
+    const v = localStorage.getItem(oldK);
+    if (v !== null) {
+      localStorage.setItem(setKey(id, part), v);
+      localStorage.removeItem(oldK);
+    }
+  }
+  localStorage.setItem('dybass_sets', JSON.stringify(sets));
+  localStorage.setItem('dybass_active', id);
+  return sets;
+}
+function loadActiveId(sets) {
+  const id = localStorage.getItem('dybass_active');
+  if (id && sets.some(s => s.id === id)) return id;
+  return sets[0].id;
+}
+
 // ─── Repetição espaçada (SM-2 simplificado, persistido) ───────────────────
 // Cada cartão ganha um agendamento salvo no PC: quando você acerta, ele volta
 // mais tarde (1d → 3d → 3d×facilidade…); quando erra, volta em minutos. Assim
@@ -188,15 +254,15 @@ function srsKey(card) {
   for (let i = 0; i < s.length; i++) h = h * 31 + s.charCodeAt(i) | 0;
   return 'c' + (h >>> 0).toString(36);
 }
-function loadSRS() {
+function loadSRS(setId) {
   try {
-    return JSON.parse(localStorage.getItem('dybass_srs') || '{}');
+    return JSON.parse(localStorage.getItem(setKey(setId, 'srs')) || '{}');
   } catch {
     return {};
   }
 }
-function saveSRS(map) {
-  safeSetItem('dybass_srs', JSON.stringify(map));
+function saveSRS(setId, map) {
+  safeSetItem(setKey(setId, 'srs'), JSON.stringify(map));
 }
 function isDue(sched) {
   return !sched || (sched.due || 0) <= Date.now();
@@ -332,12 +398,11 @@ function ContentSection({
     const lineHeight = 26;
     ta.scrollTop = Math.max(0, (before - 3) * lineHeight);
   };
+
+  // O conteúdo é salvo automaticamente no caderno ativo (App persiste em
+  // onContentChange). O botão só reforça e mostra o aviso "Salvo".
   const handleSave = () => {
-    const r = safeSetItem('dybass_content', content);
-    if (!r.ok) {
-      setImportError(r.error);
-      return;
-    }
+    onContentChange(content);
     setImportError('');
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -353,13 +418,8 @@ function ContentSection({
       // Acrescenta ao conteúdo existente (ou substitui se vazio).
       const merged = content.trim() ? content + '\n\n' + text : text;
       onContentChange(merged);
-      const r = safeSetItem('dybass_content', merged);
-      if (!r.ok) {
-        setImportError(r.error);
-      } else {
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
-      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
     } catch (err) {
       setImportError('Erro ao importar: ' + err.message);
     }
@@ -448,10 +508,11 @@ function ContentSection({
 // ─── Summary Section ──────────────────────────────────────────────────────
 function SummarySection({
   content,
-  offline
+  offline,
+  setId
 }) {
-  const [summary, setSummary] = useState(() => localStorage.getItem('dybass_summary') || '');
-  const [summaryType, setSummaryType] = useState(() => localStorage.getItem('dybass_summary_type') || '');
+  const [summary, setSummary] = useState(() => localStorage.getItem(setKey(setId, 'summary')) || '');
+  const [summaryType, setSummaryType] = useState(() => localStorage.getItem(setKey(setId, 'summary_type')) || '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const generate = async type => {
@@ -466,8 +527,8 @@ function SummarySection({
       if (result.success) {
         setSummary(result.data);
         setSummaryType(type);
-        localStorage.setItem('dybass_summary', result.data);
-        localStorage.setItem('dybass_summary_type', type);
+        safeSetItem(setKey(setId, 'summary'), result.data);
+        safeSetItem(setKey(setId, 'summary_type'), type);
         recordEvent('summariesGenerated');
       } else {
         setError('Erro ao gerar resumo: ' + result.error);
@@ -532,12 +593,13 @@ function SummarySection({
 // ─── Flashcards Section ───────────────────────────────────────────────────
 function FlashcardsSection({
   content,
-  offline
+  offline,
+  setId
 }) {
   const [exportMsg, setExportMsg] = useState('');
   const [cards, setCards] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('dybass_flashcards') || '[]');
+      return JSON.parse(localStorage.getItem(setKey(setId, 'flashcards')) || '[]');
     } catch {
       return [];
     }
@@ -555,7 +617,7 @@ function FlashcardsSection({
     again: 0
   });
   const [chapterFilter, setChapterFilter] = useState(null);
-  const [srs, setSrs] = useState(loadSRS);
+  const [srs, setSrs] = useState(() => loadSRS(setId));
   const chapters = React.useMemo(() => {
     const list = [];
     cards.forEach(c => {
@@ -604,7 +666,7 @@ function FlashcardsSection({
           ...prev,
           [key]: nextSchedule(prev[key], good)
         };
-        saveSRS(updated);
+        saveSRS(setId, updated);
         return updated;
       });
     }
@@ -638,7 +700,7 @@ function FlashcardsSection({
         setVisited(new Set());
         setReviewMode(false);
         setQueue([]);
-        localStorage.setItem('dybass_flashcards', JSON.stringify(result.data));
+        safeSetItem(setKey(setId, 'flashcards'), JSON.stringify(result.data));
         recordEvent('flashcardsGenerated');
       } else {
         setError('Erro ao gerar flashcards: ' + result.error);
@@ -869,11 +931,12 @@ function FlashcardsSection({
 // ─── Quiz Section ─────────────────────────────────────────────────────────
 function QuizSection({
   content,
-  offline
+  offline,
+  setId
 }) {
   const [questions, setQuestions] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('dybass_quiz') || '[]');
+      return JSON.parse(localStorage.getItem(setKey(setId, 'quiz')) || '[]');
     } catch {
       return [];
     }
@@ -906,7 +969,7 @@ function QuizSection({
       if (result.success) {
         setQuestions(result.data);
         setChapterFilter(null);
-        localStorage.setItem('dybass_quiz', JSON.stringify(result.data));
+        safeSetItem(setKey(setId, 'quiz'), JSON.stringify(result.data));
         resetQuiz();
       } else {
         setError('Erro ao gerar quiz: ' + result.error);
@@ -1196,9 +1259,13 @@ function Onboarding({
     title: 'Bem-vindo ao Dybass Estudioso!',
     text: 'Seu assistente de estudos. A partir de qualquer conteúdo, ele cria resumos, flashcards e quizzes para você aprender mais rápido. Vamos dar uma volta rápida?'
   }, {
+    emoji: '📚',
+    title: '1. Organize em cadernos',
+    text: 'Cada caderno guarda um material separado (conteúdo, resumo, flashcards e quiz). Crie quantos quiser na barra lateral — um para cada matéria — e troque entre eles sem perder nada.'
+  }, {
     emoji: '📝',
-    title: '1. Insira seu conteúdo',
-    text: 'Na seção Conteúdo, cole seu material ou importe um arquivo PDF/TXT. Use a busca para encontrar trechos. Tudo é salvo automaticamente.'
+    title: '2. Insira seu conteúdo',
+    text: 'Na seção Conteúdo, cole seu material ou importe um arquivo PDF/TXT. Use a busca para encontrar trechos. Tudo é salvo automaticamente no caderno ativo.'
   }, {
     emoji: '✨',
     title: '2. Gere material de estudo',
@@ -1296,13 +1363,70 @@ function ApiKeyConfig() {
   }, saved ? '✓ Salva!' : 'Salvar chave'));
 }
 
+// ─── Modal de digitação de nome ──────────────────────────────────────────
+// O Electron não suporta window.prompt(), então usamos este modal para
+// criar/renomear cadernos.
+function NamePrompt({
+  title,
+  initial,
+  confirmLabel,
+  onSubmit,
+  onCancel
+}) {
+  const [value, setValue] = useState(initial || '');
+  const inputRef = React.useRef(null);
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, []);
+  const submit = () => {
+    const v = value.trim();
+    if (v) onSubmit(v);
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "onboarding-overlay",
+    onClick: onCancel
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "name-prompt",
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "name-prompt-title"
+  }, title), /*#__PURE__*/React.createElement("input", {
+    ref: inputRef,
+    className: "apikey-input",
+    type: "text",
+    value: value,
+    maxLength: 60,
+    onChange: e => setValue(e.target.value),
+    onKeyDown: e => {
+      if (e.key === 'Enter') submit();else if (e.key === 'Escape') onCancel();
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "name-prompt-nav"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-secondary",
+    onClick: onCancel
+  }, "Cancelar"), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-primary",
+    onClick: submit,
+    disabled: !value.trim()
+  }, confirmLabel || 'Confirmar'))));
+}
+
 // ─── App Root ─────────────────────────────────────────────────────────────
 function App() {
   const [section, setSection] = useState('content');
-  const [content, setContent] = useState(() => localStorage.getItem('dybass_content') || '');
+  // Cadernos: cada um com seu próprio conteúdo/material. ensureSets migra o
+  // material antigo (versões anteriores) para o primeiro caderno.
+  const [sets, setSets] = useState(ensureSets);
+  const [activeId, setActiveId] = useState(() => loadActiveId(loadSetsRaw() || sets));
+  const [content, setContent] = useState(() => loadContentFor(activeId));
   const [offline, setOffline] = useState(() => localStorage.getItem('dybass_offline') === 'true');
   const [theme, setTheme] = useState(() => localStorage.getItem('dybass_theme') || 'dark');
   const [showOnboarding, setShowOnboarding] = useState(() => localStorage.getItem('dybass_onboarded') !== 'true');
+  const [namePrompt, setNamePrompt] = useState(null);
 
   // Aplica o tema ao <body>.
   useEffect(() => {
@@ -1329,8 +1453,74 @@ function App() {
       return next;
     });
   };
+
+  // Auto-salva o conteúdo no caderno ativo a cada mudança (nada se perde ao
+  // trocar de caderno ou fechar o app).
   const handleContentChange = val => {
     setContent(val);
+    safeSetItem(setKey(activeId, 'content'), val);
+  };
+  const activeSet = sets.find(s => s.id === activeId) || sets[0];
+  const switchSet = id => {
+    if (id === activeId) return;
+    safeSetItem(setKey(activeId, 'content'), content); // garante o atual salvo
+    setActiveId(id);
+    saveActiveId(id);
+    setContent(loadContentFor(id));
+    setSection('content');
+  };
+  const doCreateSet = name => {
+    safeSetItem(setKey(activeId, 'content'), content); // salva o atual antes
+    const id = newSetId();
+    const next = [...sets, {
+      id,
+      name,
+      createdAt: Date.now()
+    }];
+    setSets(next);
+    saveSets(next);
+    setActiveId(id);
+    saveActiveId(id);
+    setContent('');
+    setSection('content');
+    setNamePrompt(null);
+  };
+  const doRenameSet = name => {
+    const next = sets.map(s => s.id === activeId ? {
+      ...s,
+      name
+    } : s);
+    setSets(next);
+    saveSets(next);
+    setNamePrompt(null);
+  };
+  const createSet = () => setNamePrompt({
+    title: 'Novo caderno',
+    initial: 'Caderno ' + (sets.length + 1),
+    confirmLabel: 'Criar',
+    onSubmit: doCreateSet
+  });
+  const renameSet = () => setNamePrompt({
+    title: 'Renomear caderno',
+    initial: activeSet.name,
+    confirmLabel: 'Salvar',
+    onSubmit: doRenameSet
+  });
+  const deleteSet = () => {
+    if (sets.length <= 1) {
+      alert('Você precisa de pelo menos um caderno. Crie outro antes de excluir este.');
+      return;
+    }
+    if (!confirm(`Excluir o caderno "${activeSet.name}" e TODO o material dele (conteúdo, resumo, flashcards, quiz)? Isso não pode ser desfeito.`)) return;
+    purgeSet(activeId);
+    const next = sets.filter(s => s.id !== activeId);
+    setSets(next);
+    saveSets(next);
+    const newActive = next[0].id;
+    setActiveId(newActive);
+    saveActiveId(newActive);
+    setContent(loadContentFor(newActive));
+    setSection('content');
   };
   const navItems = [{
     id: 'content',
@@ -1362,11 +1552,44 @@ function App() {
     }
   }, showOnboarding && /*#__PURE__*/React.createElement(Onboarding, {
     onClose: () => setShowOnboarding(false)
+  }), namePrompt && /*#__PURE__*/React.createElement(NamePrompt, {
+    title: namePrompt.title,
+    initial: namePrompt.initial,
+    confirmLabel: namePrompt.confirmLabel,
+    onSubmit: namePrompt.onSubmit,
+    onCancel: () => setNamePrompt(null)
   }), /*#__PURE__*/React.createElement("div", {
     className: "sidebar"
   }, /*#__PURE__*/React.createElement("div", {
     className: "sidebar-logo"
-  }, /*#__PURE__*/React.createElement("h1", null, "Dybass"), /*#__PURE__*/React.createElement("span", null, "Estudioso")), /*#__PURE__*/React.createElement("nav", {
+  }, /*#__PURE__*/React.createElement("h1", null, "Dybass"), /*#__PURE__*/React.createElement("span", null, "Estudioso")), /*#__PURE__*/React.createElement("div", {
+    className: "set-picker"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "set-picker-label"
+  }, icons.book, " Caderno"), /*#__PURE__*/React.createElement("select", {
+    className: "set-select",
+    value: activeId,
+    onChange: e => switchSet(e.target.value),
+    title: "Trocar de caderno"
+  }, sets.map(s => /*#__PURE__*/React.createElement("option", {
+    key: s.id,
+    value: s.id
+  }, s.name))), /*#__PURE__*/React.createElement("div", {
+    className: "set-actions"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "set-btn",
+    onClick: createSet,
+    title: "Novo caderno"
+  }, icons.plus, " Novo"), /*#__PURE__*/React.createElement("button", {
+    className: "set-btn",
+    onClick: renameSet,
+    title: "Renomear este caderno"
+  }, icons.edit), /*#__PURE__*/React.createElement("button", {
+    className: "set-btn set-btn-danger",
+    onClick: deleteSet,
+    title: "Excluir este caderno",
+    disabled: sets.length <= 1
+  }, icons.trash))), /*#__PURE__*/React.createElement("nav", {
     className: "sidebar-nav"
   }, navItems.map(item => /*#__PURE__*/React.createElement("button", {
     key: item.id,
@@ -1413,17 +1636,24 @@ function App() {
   }, "Ver tutorial"))), /*#__PURE__*/React.createElement("div", {
     className: "main"
   }, section === 'content' && /*#__PURE__*/React.createElement(ContentSection, {
+    key: activeId,
     content: content,
     onContentChange: handleContentChange
   }), section === 'summary' && /*#__PURE__*/React.createElement(SummarySection, {
+    key: activeId,
     content: content,
-    offline: offline
+    offline: offline,
+    setId: activeId
   }), section === 'flashcards' && /*#__PURE__*/React.createElement(FlashcardsSection, {
+    key: activeId,
     content: content,
-    offline: offline
+    offline: offline,
+    setId: activeId
   }), section === 'quiz' && /*#__PURE__*/React.createElement(QuizSection, {
+    key: activeId,
     content: content,
-    offline: offline
+    offline: offline,
+    setId: activeId
   }), section === 'stats' && /*#__PURE__*/React.createElement(StatsSection, null)));
 }
 ReactDOM.createRoot(document.getElementById('root')).render(/*#__PURE__*/React.createElement(App, null));
