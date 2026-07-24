@@ -12,8 +12,14 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
+const path = require('path');
+const fs = require('fs');
 
 const app = express();
+
+// Raiz do repositório (um nível acima de server/), onde ficam os arquivos do app
+// (index.html, app.js, offline.js, vendor/) — reaproveitados pela versão web.
+const APP_ROOT = path.join(__dirname, '..');
 
 // ─── Configuração (vem toda do ambiente) ──────────────────────────────────────
 const PORT = process.env.PORT || 3000;
@@ -51,6 +57,28 @@ app.use('/api/', limiter);
 
 // Rota de "saúde": o Render usa para checar se o servidor está no ar.
 app.get('/health', (req, res) => res.json({ ok: true }));
+
+// ─── Versão WEB do app (mesma tela do desktop, no navegador) ──────────────────
+// Servimos os arquivos do app (compartilhados com a versão desktop) e injetamos
+// o adaptador web-api.js, que faz o app falar com este servidor pelo navegador.
+// A chave da Anthropic continua só aqui; o navegador nunca a vê.
+app.get('/app.js', (req, res) => res.sendFile(path.join(APP_ROOT, 'app.js')));
+app.get('/offline.js', (req, res) => res.sendFile(path.join(APP_ROOT, 'offline.js')));
+app.get('/web-api.js', (req, res) => res.sendFile(path.join(__dirname, 'web-api.js')));
+app.use('/vendor', express.static(path.join(APP_ROOT, 'vendor')));
+
+app.get('/', (req, res) => {
+  let html;
+  try {
+    html = fs.readFileSync(path.join(APP_ROOT, 'index.html'), 'utf8');
+  } catch {
+    return res.status(500).send('index.html não encontrado no servidor.');
+  }
+  // Injeta o adaptador web ANTES do app.js (para que window.electronAPI exista).
+  const inject = '  <script src="/web-api.js"></script>\n';
+  html = html.replace('<script src="app.js"></script>', inject + '  <script src="app.js"></script>');
+  res.type('html').send(html);
+});
 
 // Confere o código de acesso compartilhado enviado pelo app.
 function checkAccess(req, res, next) {

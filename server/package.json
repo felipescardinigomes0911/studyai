@@ -1,6 +1,6 @@
 {
   "name": "dybass-backend",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Backend proxy do Dybass Estudioso: guarda a chave da Anthropic e repassa as chamadas.",
   "private": true,
   "main": "server.js",
