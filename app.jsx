@@ -524,8 +524,14 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
       const [loading, setLoading] = useState(false);
       const [error, setError] = useState('');
       const [renaming, setRenaming] = useState(null); // resumo sendo renomeado
+      const [editing, setEditing] = useState(false);  // editando o texto do resumo ativo
+      const [editText, setEditText] = useState('');
+      const [exportMsg, setExportMsg] = useState('');
 
       const active = summaries.find(s => s.id === activeSumId) || summaries[0] || null;
+
+      // Ao trocar de aba, sai do modo de edição.
+      useEffect(() => { setEditing(false); }, [activeSumId]);
 
       const generate = async (type) => {
         if (!content.trim()) {
@@ -537,7 +543,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
         try {
           const result = await runAI(offline, 'generateSummary', content, type);
           if (result.success) {
-            // Novo resumo entra no TOPO da lista, sem apagar os anteriores.
+            // Novo resumo entra no INÍCIO da lista (primeira aba), sem apagar os anteriores.
             const item = {
               id: 's' + Date.now().toString(36),
               title: summaryTitle(type, Date.now()),
@@ -571,11 +577,29 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
         setRenaming(null);
       };
 
+      // Salva o texto editado (acrescentar/diminuir conteúdo) de um resumo.
+      const saveEdit = () => {
+        const next = summaries.map(s => (s.id === active.id ? { ...s, text: editText } : s));
+        setSummaries(next);
+        saveSummaries(setId, next);
+        setEditing(false);
+      };
+
+      // Exporta o resumo ativo como arquivo (individual). No desktop abre o
+      // diálogo nativo; na web baixa direto.
+      const exportOne = async () => {
+        if (!active) return;
+        const name = (active.title || 'resumo').replace(/[\\/:*?"<>|\n]+/g, '-').slice(0, 60) + '.md';
+        const res = await exportData(name, active.text, 'text/markdown');
+        if (res.success) { setExportMsg('Salvo!'); setTimeout(() => setExportMsg(''), 2500); }
+        else if (!res.canceled) { setExportMsg('Falha ao salvar'); setTimeout(() => setExportMsg(''), 2500); }
+      };
+
       return (
         <div>
           <div className="page-header">
             <h2>Resumo</h2>
-            <p>Cada geração vira um resumo salvo — eles se acumulam neste caderno.</p>
+            <p>Uma aba por resumo deste caderno. Você pode editar e salvar cada uma.</p>
           </div>
           {renaming && (
             <NamePrompt
@@ -596,27 +620,24 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
                 {loading ? <span className="loading-spinner" /> : '•'}
                 {summaries.length ? 'Novo Resumo Simples' : 'Resumo Simples'}
               </button>
-              {summaries.length > 0 && (
-                <span className="badge badge-red" style={{marginLeft: 'auto'}}>
-                  {summaries.length} salvo{summaries.length > 1 ? 's' : ''}
-                </span>
-              )}
             </div>
 
-            {/* Lista dos resumos salvos (histórico do caderno) */}
+            {/* Abas — uma por resumo salvo */}
             {!loading && summaries.length > 0 && (
-              <div className="saved-list">
+              <div className="sum-tabs">
                 {summaries.map(s => (
-                  <div key={s.id} className={`saved-chip ${s.id === active.id ? 'active' : ''}`}>
-                    <button className="saved-chip-open" onClick={() => setActiveSumId(s.id)} title="Abrir este resumo">
-                      {s.title}
-                    </button>
-                    <button className="saved-chip-edit" onClick={() => setRenaming(s)} title="Renomear este resumo">
-                      {icons.edit}
-                    </button>
-                    <button className="saved-chip-del" onClick={() => removeSummary(s.id)} title="Excluir este resumo">
-                      {icons.cross}
-                    </button>
+                  <div
+                    key={s.id}
+                    className={`sum-tab ${s.id === active.id ? 'active' : ''}`}
+                    onClick={() => setActiveSumId(s.id)}
+                    title={s.title}
+                  >
+                    <span className="sum-tab-title">{s.title}</span>
+                    <span
+                      className="sum-tab-close"
+                      onClick={(e) => { e.stopPropagation(); removeSummary(s.id); }}
+                      title="Fechar/excluir este resumo"
+                    >{icons.cross}</span>
                   </div>
                 ))}
               </div>
@@ -636,7 +657,45 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
               </div>
             )}
 
+            {/* Barra de ações do resumo ativo */}
             {!loading && active && (
+              <div className="sum-toolbar">
+                <span className="badge badge-red">{active.type === 'completo' ? 'Completo' : 'Simples'}</span>
+                {!editing && (
+                  <React.Fragment>
+                    <button className="btn btn-secondary btn-sm" onClick={() => setRenaming(active)}>
+                      {icons.edit} Renomear
+                    </button>
+                    <button className="btn btn-secondary btn-sm" onClick={() => { setEditText(active.text); setEditing(true); }}>
+                      ✏️ Editar conteúdo
+                    </button>
+                    <button className="btn btn-secondary btn-sm" onClick={exportOne} title="Salvar este resumo como arquivo">
+                      {icons.save} Salvar arquivo
+                    </button>
+                    {exportMsg && <span className="export-toast">{icons.check} {exportMsg}</span>}
+                  </React.Fragment>
+                )}
+              </div>
+            )}
+
+            {/* Conteúdo do resumo ativo: modo leitura ou edição */}
+            {!loading && active && editing && (
+              <div>
+                <textarea
+                  className="content-textarea"
+                  style={{minHeight: 360}}
+                  value={editText}
+                  onChange={e => setEditText(e.target.value)}
+                  placeholder="Edite o resumo — acrescente ou remova o que quiser."
+                />
+                <div style={{display:'flex', gap:10, marginTop:12}}>
+                  <button className="btn btn-primary" onClick={saveEdit}>{icons.check} Salvar alterações</button>
+                  <button className="btn btn-secondary" onClick={() => setEditing(false)}>Cancelar</button>
+                </div>
+              </div>
+            )}
+
+            {!loading && active && !editing && (
               <div className="summary-result">{renderSummary(active.text)}</div>
             )}
 
@@ -646,7 +705,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
                 <div className="empty-title">Nenhum resumo gerado</div>
                 <div className="empty-desc">
                   Clique em "Resumo Completo" para um resumo detalhado ou "Resumo Simples" para bullet points rápidos.
-                  Cada resumo fica salvo aqui.
+                  Cada resumo vira uma aba aqui.
                 </div>
               </div>
             )}

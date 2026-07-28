@@ -362,6 +362,55 @@
     body.light .saved-chip-del { border-left-color: #e0e0e0; }
     body.light .saved-chip-edit { border-left-color: #e0e0e0; color: #888; }
 
+    /* Abas dos resumos */
+    .sum-tabs {
+      display: flex;
+      gap: 4px;
+      overflow-x: auto;
+      border-bottom: 2px solid #222;
+      margin-bottom: 16px;
+      padding-bottom: 0;
+    }
+    .sum-tab {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex: 0 0 auto;
+      max-width: 220px;
+      padding: 9px 12px;
+      background: #111;
+      border: 1px solid #222;
+      border-bottom: none;
+      border-radius: 8px 8px 0 0;
+      color: #999;
+      cursor: pointer;
+      font-size: 13px;
+      margin-bottom: -2px;
+    }
+    .sum-tab:hover { color: #ccc; }
+    .sum-tab.active {
+      background: #1a0000;
+      border-color: #8b0000;
+      color: #fff;
+      border-bottom: 2px solid #1a0000;
+    }
+    .sum-tab-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sum-tab-close { color: #666; font-size: 12px; border-radius: 4px; padding: 0 4px; }
+    .sum-tab-close:hover { color: #ff6b6b; background: rgba(139,0,0,0.2); }
+    .sum-tab.active .sum-tab-close { color: #d88; }
+    body.light .sum-tabs { border-bottom-color: #dcdcdc; }
+    body.light .sum-tab { background: #f2f2f2; border-color: #dcdcdc; color: #666; }
+    body.light .sum-tab.active { background: #ffe3e3; border-color: #c0392b; color: #a01818; border-bottom-color: #ffe3e3; }
+
+    /* Barra de ações do resumo ativo */
+    .sum-toolbar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
     /* Botão de excluir o cartão atual */
     .card-del-btn {
       background: transparent;

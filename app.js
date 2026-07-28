@@ -569,8 +569,15 @@ function SummarySection({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [renaming, setRenaming] = useState(null); // resumo sendo renomeado
-
+  const [editing, setEditing] = useState(false); // editando o texto do resumo ativo
+  const [editText, setEditText] = useState('');
+  const [exportMsg, setExportMsg] = useState('');
   const active = summaries.find(s => s.id === activeSumId) || summaries[0] || null;
+
+  // Ao trocar de aba, sai do modo de edição.
+  useEffect(() => {
+    setEditing(false);
+  }, [activeSumId]);
   const generate = async type => {
     if (!content.trim()) {
       setError('Adicione conteúdo de estudo na seção "Conteúdo" primeiro.');
@@ -581,7 +588,7 @@ function SummarySection({
     try {
       const result = await runAI(offline, 'generateSummary', content, type);
       if (result.success) {
-        // Novo resumo entra no TOPO da lista, sem apagar os anteriores.
+        // Novo resumo entra no INÍCIO da lista (primeira aba), sem apagar os anteriores.
         const item = {
           id: 's' + Date.now().toString(36),
           title: summaryTitle(type, Date.now()),
@@ -617,9 +624,35 @@ function SummarySection({
     saveSummaries(setId, next);
     setRenaming(null);
   };
+
+  // Salva o texto editado (acrescentar/diminuir conteúdo) de um resumo.
+  const saveEdit = () => {
+    const next = summaries.map(s => s.id === active.id ? {
+      ...s,
+      text: editText
+    } : s);
+    setSummaries(next);
+    saveSummaries(setId, next);
+    setEditing(false);
+  };
+
+  // Exporta o resumo ativo como arquivo (individual). No desktop abre o
+  // diálogo nativo; na web baixa direto.
+  const exportOne = async () => {
+    if (!active) return;
+    const name = (active.title || 'resumo').replace(/[\\/:*?"<>|\n]+/g, '-').slice(0, 60) + '.md';
+    const res = await exportData(name, active.text, 'text/markdown');
+    if (res.success) {
+      setExportMsg('Salvo!');
+      setTimeout(() => setExportMsg(''), 2500);
+    } else if (!res.canceled) {
+      setExportMsg('Falha ao salvar');
+      setTimeout(() => setExportMsg(''), 2500);
+    }
+  };
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "page-header"
-  }, /*#__PURE__*/React.createElement("h2", null, "Resumo"), /*#__PURE__*/React.createElement("p", null, "Cada gera\xE7\xE3o vira um resumo salvo \u2014 eles se acumulam neste caderno.")), renaming && /*#__PURE__*/React.createElement(NamePrompt, {
+  }, /*#__PURE__*/React.createElement("h2", null, "Resumo"), /*#__PURE__*/React.createElement("p", null, "Uma aba por resumo deste caderno. Voc\xEA pode editar e salvar cada uma.")), renaming && /*#__PURE__*/React.createElement(NamePrompt, {
     title: "Renomear resumo",
     initial: renaming.title,
     confirmLabel: "Salvar",
@@ -641,28 +674,22 @@ function SummarySection({
     disabled: loading
   }, loading ? /*#__PURE__*/React.createElement("span", {
     className: "loading-spinner"
-  }) : '•', summaries.length ? 'Novo Resumo Simples' : 'Resumo Simples'), summaries.length > 0 && /*#__PURE__*/React.createElement("span", {
-    className: "badge badge-red",
-    style: {
-      marginLeft: 'auto'
-    }
-  }, summaries.length, " salvo", summaries.length > 1 ? 's' : '')), !loading && summaries.length > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "saved-list"
+  }) : '•', summaries.length ? 'Novo Resumo Simples' : 'Resumo Simples')), !loading && summaries.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "sum-tabs"
   }, summaries.map(s => /*#__PURE__*/React.createElement("div", {
     key: s.id,
-    className: `saved-chip ${s.id === active.id ? 'active' : ''}`
-  }, /*#__PURE__*/React.createElement("button", {
-    className: "saved-chip-open",
+    className: `sum-tab ${s.id === active.id ? 'active' : ''}`,
     onClick: () => setActiveSumId(s.id),
-    title: "Abrir este resumo"
-  }, s.title), /*#__PURE__*/React.createElement("button", {
-    className: "saved-chip-edit",
-    onClick: () => setRenaming(s),
-    title: "Renomear este resumo"
-  }, icons.edit), /*#__PURE__*/React.createElement("button", {
-    className: "saved-chip-del",
-    onClick: () => removeSummary(s.id),
-    title: "Excluir este resumo"
+    title: s.title
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "sum-tab-title"
+  }, s.title), /*#__PURE__*/React.createElement("span", {
+    className: "sum-tab-close",
+    onClick: e => {
+      e.stopPropagation();
+      removeSummary(s.id);
+    },
+    title: "Fechar/excluir este resumo"
   }, icons.cross)))), error && /*#__PURE__*/React.createElement("div", {
     className: "error-banner"
   }, icons.cross, " ", error), loading && /*#__PURE__*/React.createElement("div", {
@@ -680,6 +707,45 @@ function SummarySection({
   }, "Gerando resumo..."), /*#__PURE__*/React.createElement("div", {
     className: "empty-desc"
   }, "A IA est\xE1 processando seu conte\xFAdo")), !loading && active && /*#__PURE__*/React.createElement("div", {
+    className: "sum-toolbar"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "badge badge-red"
+  }, active.type === 'completo' ? 'Completo' : 'Simples'), !editing && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-secondary btn-sm",
+    onClick: () => setRenaming(active)
+  }, icons.edit, " Renomear"), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-secondary btn-sm",
+    onClick: () => {
+      setEditText(active.text);
+      setEditing(true);
+    }
+  }, "\u270F\uFE0F Editar conte\xFAdo"), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-secondary btn-sm",
+    onClick: exportOne,
+    title: "Salvar este resumo como arquivo"
+  }, icons.save, " Salvar arquivo"), exportMsg && /*#__PURE__*/React.createElement("span", {
+    className: "export-toast"
+  }, icons.check, " ", exportMsg))), !loading && active && editing && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("textarea", {
+    className: "content-textarea",
+    style: {
+      minHeight: 360
+    },
+    value: editText,
+    onChange: e => setEditText(e.target.value),
+    placeholder: "Edite o resumo \u2014 acrescente ou remova o que quiser."
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 10,
+      marginTop: 12
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-primary",
+    onClick: saveEdit
+  }, icons.check, " Salvar altera\xE7\xF5es"), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-secondary",
+    onClick: () => setEditing(false)
+  }, "Cancelar"))), !loading && active && !editing && /*#__PURE__*/React.createElement("div", {
     className: "summary-result"
   }, renderSummary(active.text)), !loading && !active && !error && /*#__PURE__*/React.createElement("div", {
     className: "empty-state"
@@ -689,7 +755,7 @@ function SummarySection({
     className: "empty-title"
   }, "Nenhum resumo gerado"), /*#__PURE__*/React.createElement("div", {
     className: "empty-desc"
-  }, "Clique em \"Resumo Completo\" para um resumo detalhado ou \"Resumo Simples\" para bullet points r\xE1pidos. Cada resumo fica salvo aqui."))));
+  }, "Clique em \"Resumo Completo\" para um resumo detalhado ou \"Resumo Simples\" para bullet points r\xE1pidos. Cada resumo vira uma aba aqui."))));
 }
 
 // ─── Flashcards Section ───────────────────────────────────────────────────
