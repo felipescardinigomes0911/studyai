@@ -107,9 +107,36 @@
       return out;
     }
 
-    // ─── Seletor de capítulos (chips) ────────────────────────────────────────
+    // ─── Seletor de capítulos ─────────────────────────────────────────────────
+    // Poucos capítulos → botões (chips), rápido de tocar. Muitos → um menu
+    // suspenso compacto, para não virar uma parede de botões.
     function ChapterChips({ chapters, value, onChange }) {
       if (!chapters || chapters.length <= 1) return null;
+
+      if (chapters.length > 6) {
+        return (
+          <div className="chapter-bar">
+            <span className="chapter-bar-label">{icons.book} Capítulo:</span>
+            <select
+              className="chapter-select"
+              value={value || ''}
+              onChange={e => onChange(e.target.value || null)}
+              title="Filtrar por capítulo"
+            >
+              <option value="">Todos os capítulos ({chapters.length})</option>
+              {chapters.map((c, i) => (
+                <option key={i} value={c}>{c}</option>
+              ))}
+            </select>
+            {value && (
+              <button className="chapter-clear" onClick={() => onChange(null)} title="Mostrar todos">
+                {icons.cross} limpar
+              </button>
+            )}
+          </div>
+        );
+      }
+
       return (
         <div className="chapter-bar">
           <span className="chapter-bar-label">Capítulo:</span>

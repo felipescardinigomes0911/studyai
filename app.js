@@ -133,13 +133,36 @@ function renderSummary(text) {
   return out;
 }
 
-// ─── Seletor de capítulos (chips) ────────────────────────────────────────
+// ─── Seletor de capítulos ─────────────────────────────────────────────────
+// Poucos capítulos → botões (chips), rápido de tocar. Muitos → um menu
+// suspenso compacto, para não virar uma parede de botões.
 function ChapterChips({
   chapters,
   value,
   onChange
 }) {
   if (!chapters || chapters.length <= 1) return null;
+  if (chapters.length > 6) {
+    return /*#__PURE__*/React.createElement("div", {
+      className: "chapter-bar"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "chapter-bar-label"
+    }, icons.book, " Cap\xEDtulo:"), /*#__PURE__*/React.createElement("select", {
+      className: "chapter-select",
+      value: value || '',
+      onChange: e => onChange(e.target.value || null),
+      title: "Filtrar por cap\xEDtulo"
+    }, /*#__PURE__*/React.createElement("option", {
+      value: ""
+    }, "Todos os cap\xEDtulos (", chapters.length, ")"), chapters.map((c, i) => /*#__PURE__*/React.createElement("option", {
+      key: i,
+      value: c
+    }, c))), value && /*#__PURE__*/React.createElement("button", {
+      className: "chapter-clear",
+      onClick: () => onChange(null),
+      title: "Mostrar todos"
+    }, icons.cross, " limpar"));
+  }
   return /*#__PURE__*/React.createElement("div", {
     className: "chapter-bar"
   }, /*#__PURE__*/React.createElement("span", {
