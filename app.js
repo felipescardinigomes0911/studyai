@@ -568,6 +568,8 @@ function SummarySection({
   const [activeSumId, setActiveSumId] = useState(() => (loadSummaries(setId)[0] || {}).id || null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [renaming, setRenaming] = useState(null); // resumo sendo renomeado
+
   const active = summaries.find(s => s.id === activeSumId) || summaries[0] || null;
   const generate = async type => {
     if (!content.trim()) {
@@ -606,9 +608,24 @@ function SummarySection({
     saveSummaries(setId, next);
     if (activeSumId === id) setActiveSumId((next[0] || {}).id || null);
   };
+  const renameSummary = (id, title) => {
+    const next = summaries.map(s => s.id === id ? {
+      ...s,
+      title
+    } : s);
+    setSummaries(next);
+    saveSummaries(setId, next);
+    setRenaming(null);
+  };
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "page-header"
-  }, /*#__PURE__*/React.createElement("h2", null, "Resumo"), /*#__PURE__*/React.createElement("p", null, "Cada gera\xE7\xE3o vira um resumo salvo \u2014 eles se acumulam neste caderno.")), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("h2", null, "Resumo"), /*#__PURE__*/React.createElement("p", null, "Cada gera\xE7\xE3o vira um resumo salvo \u2014 eles se acumulam neste caderno.")), renaming && /*#__PURE__*/React.createElement(NamePrompt, {
+    title: "Renomear resumo",
+    initial: renaming.title,
+    confirmLabel: "Salvar",
+    onSubmit: name => renameSummary(renaming.id, name),
+    onCancel: () => setRenaming(null)
+  }), /*#__PURE__*/React.createElement("div", {
     className: "page-content"
   }, /*#__PURE__*/React.createElement("div", {
     className: "summary-actions"
@@ -639,6 +656,10 @@ function SummarySection({
     onClick: () => setActiveSumId(s.id),
     title: "Abrir este resumo"
   }, s.title), /*#__PURE__*/React.createElement("button", {
+    className: "saved-chip-edit",
+    onClick: () => setRenaming(s),
+    title: "Renomear este resumo"
+  }, icons.edit), /*#__PURE__*/React.createElement("button", {
     className: "saved-chip-del",
     onClick: () => removeSummary(s.id),
     title: "Excluir este resumo"

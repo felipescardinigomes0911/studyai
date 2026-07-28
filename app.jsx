@@ -523,6 +523,7 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
       const [activeSumId, setActiveSumId] = useState(() => (loadSummaries(setId)[0] || {}).id || null);
       const [loading, setLoading] = useState(false);
       const [error, setError] = useState('');
+      const [renaming, setRenaming] = useState(null); // resumo sendo renomeado
 
       const active = summaries.find(s => s.id === activeSumId) || summaries[0] || null;
 
@@ -563,12 +564,28 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
         if (activeSumId === id) setActiveSumId((next[0] || {}).id || null);
       };
 
+      const renameSummary = (id, title) => {
+        const next = summaries.map(s => (s.id === id ? { ...s, title } : s));
+        setSummaries(next);
+        saveSummaries(setId, next);
+        setRenaming(null);
+      };
+
       return (
         <div>
           <div className="page-header">
             <h2>Resumo</h2>
             <p>Cada geração vira um resumo salvo — eles se acumulam neste caderno.</p>
           </div>
+          {renaming && (
+            <NamePrompt
+              title="Renomear resumo"
+              initial={renaming.title}
+              confirmLabel="Salvar"
+              onSubmit={(name) => renameSummary(renaming.id, name)}
+              onCancel={() => setRenaming(null)}
+            />
+          )}
           <div className="page-content">
             <div className="summary-actions">
               <button className="btn btn-primary" onClick={() => generate('completo')} disabled={loading}>
@@ -593,6 +610,9 @@ Quanto mais detalhado o conteúdo, melhores serão os materiais gerados."
                   <div key={s.id} className={`saved-chip ${s.id === active.id ? 'active' : ''}`}>
                     <button className="saved-chip-open" onClick={() => setActiveSumId(s.id)} title="Abrir este resumo">
                       {s.title}
+                    </button>
+                    <button className="saved-chip-edit" onClick={() => setRenaming(s)} title="Renomear este resumo">
+                      {icons.edit}
                     </button>
                     <button className="saved-chip-del" onClick={() => removeSummary(s.id)} title="Excluir este resumo">
                       {icons.cross}
